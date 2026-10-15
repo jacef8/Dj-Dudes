@@ -42,6 +42,21 @@ Click **📁 Playlists** (top right) or **Save** on a queue.
 - **Desktop app:** playlists are saved as normal `.m3u8` files in `Documents\DJ Dudes\Playlists`. They point at your music where it already is, so if you move or rename a song, it gets skipped and you're told how many were missing. You can also drop `.m3u`/`.m3u8` playlists exported from other music software into that folder and they'll show up.
 - **Opening `index.html` in a browser:** a web page can't reopen files from where they sit on your PC, so a copy of each song is saved inside the browser with the playlist. This takes up disk space, and clearing the browser's site data deletes these playlists.
 
+### Phone remote (desktop app)
+Walk away from the PC and keep an eye on the set from your phone. There's nothing to install on the phone, and no internet is needed. The phone just has to be on the **same Wi-Fi** as the PC.
+
+1. Click **📱 Remote** (top right) and tick **Let my phone control DJ Dudes**.
+2. Scan the QR code with your phone's camera and open the link.
+3. The first time, Windows may ask whether DJ Dudes can use the network. Choose **Private networks**.
+
+On the phone you see both decks: what's playing, time left, what's up next, which deck is live, and where the crossfader is. You can:
+- press **FADE NOW**,
+- play / pause, **BACK** and **NEXT** on each deck (it asks first before skipping a deck that's playing out loud),
+- turn **automix** on or off,
+- set the **master volume**.
+
+The link contains a secret key, so other people on the Wi-Fi can't take over. **New link** makes a fresh key and disconnects every phone. The setting is remembered, so next time you only need to re-open the bookmarked link. If the phone's screen goes to sleep, the page reconnects when you wake it.
+
 ### Deck controls
 | Control | What it does |
 |---|---|

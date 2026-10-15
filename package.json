@@ -15,9 +15,23 @@
   "build": {
     "appId": "com.djdudes.app",
     "productName": "DJ Dudes",
-    "files": ["main.js", "preload.js", "index.html", "style.css", "app.js"],
+    "files": [
+      "main.js",
+      "preload.js",
+      "remote-server.js",
+      "remote.html",
+      "index.html",
+      "style.css",
+      "app.js"
+    ],
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     }
+  },
+  "dependencies": {
+    "qrcode-generator": "^2.0.4"
   }
 }

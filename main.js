@@ -3,9 +3,13 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const { fileURLToPath } = require('url');
+const { RemoteServer } = require('./remote-server');
+
+let mainWindow = null;
+let remote = null;
 
 function createWindow() {
-  const win = new BrowserWindow({
+  const win = mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 960,
@@ -111,5 +115,27 @@ ipcMain.handle('open-playlist-folder', async () => {
   return shell.openPath(playlistDir());
 });
 
-app.whenReady().then(createWindow);
+/* ---------- phone remote ---------- */
+
+ipcMain.on('remote-state', (_e, state) => remote && remote.pushState(state));
+ipcMain.handle('remote-info', () => remote.info());
+ipcMain.handle('remote-set-enabled', async (_e, on) => {
+  await remote.setEnabled(on);
+  return remote.info();
+});
+ipcMain.handle('remote-reset', async () => {
+  await remote.resetToken();
+  return remote.info();
+});
+
+app.whenReady().then(async () => {
+  remote = new RemoteServer({
+    settingsFile: path.join(app.getPath('userData'), 'remote.json'),
+    onCommand: cmd => mainWindow && mainWindow.webContents.send('remote-cmd', cmd),
+  });
+  if (remote.settings.enabled) {
+    try { await remote.start(); } catch (err) { console.error('Phone remote failed to start:', err); }
+  }
+  createWindow();
+});
 app.on('window-all-closed', () => app.quit());

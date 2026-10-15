@@ -1086,6 +1086,115 @@ for (const deck of [decks.A, decks.B]) {
   $('.save-pl', deck.qroot).addEventListener('click', () => showPlaylists(true));
 }
 
+/* ---------- phone remote (desktop app only) ---------- */
+
+/** Snapshot of what's going on, sent to connected phones. */
+function remoteState() {
+  const deck = d => ({
+    name: d.track ? d.track.name : '',
+    playing: d.isPlaying,
+    audible: d.isAudible,
+    elapsed: d.track ? d.el.currentTime : 0,
+    duration: Number.isFinite(d.el.duration) ? d.el.duration : (d.track ? d.track.duration : 0),
+    rate: d.el.playbackRate,
+    loop: d.el.loop,
+    upNext: d.queue.slice(0, 3).map(t => t.name),
+    queued: d.queue.length,
+  });
+  return {
+    A: deck(decks.A),
+    B: deck(decks.B),
+    xfade: state.xfade,
+    fading: !!state.fade,
+    next: nonLiveDeck().id,
+    automix: state.automix,
+    startBefore: state.startBefore,
+    fadeSec: state.fadeSec,
+    master: +$('#master').value,
+    status: $('#status').textContent,
+  };
+}
+
+const remoteApi = window.native && window.native.remote;
+
+if (remoteApi) {
+  setInterval(() => remoteApi.sendState(remoteState()), 400);
+
+  remoteApi.onCommand(({ action, deck, value }) => {
+    resumeAudio();
+    const d = decks[deck];
+    switch (action) {
+      case 'fadeNow': transitionTo(nonLiveDeck()); break;
+      case 'toggle': d && d.toggle(); break;
+      case 'next': d && d.next(); break;
+      case 'back': d && d.back(); break;
+      case 'automix': automixBtn.click(); break;
+      case 'master':
+        if (Number.isFinite(value)) {
+          const v = clamp(value, 0, 1.5);
+          $('#master').value = v;
+          setParamNow(master.gain, v);
+        }
+        break;
+    }
+    remoteApi.sendState(remoteState()); // let the phone see the result right away
+  });
+}
+
+const remoteDialog = $('#remote');
+
+function renderRemoteInfo(info) {
+  $('#remote-on').checked = info.enabled;
+  $('#remote-body').hidden = !info.running;
+  $('#remote-qr').innerHTML = info.qrSvg; // generated locally by the app
+  const urls = $('#remote-urls');
+  urls.textContent = '';
+  for (const u of info.urls) {
+    const div = document.createElement('div');
+    div.textContent = u;
+    urls.append(div);
+  }
+  if (info.running && !info.urls.length) {
+    urls.textContent = "This PC doesn't seem to be on a network. Connect it to Wi-Fi or Ethernet.";
+  }
+  $('#remote-phones').textContent = info.phones
+    ? `✅ ${info.phones} phone${info.phones > 1 ? 's' : ''} connected`
+    : info.running ? 'Waiting for a phone to connect…' : '';
+  $('#remote-btn-label').textContent = info.phones ? `Remote (${info.phones})` : 'Remote';
+  $('#remote-btn').classList.toggle('has-phones', info.phones > 0);
+}
+
+async function refreshRemote() {
+  if (remoteApi) renderRemoteInfo(await remoteApi.info());
+}
+
+$('#remote-btn').addEventListener('click', () => {
+  $('#remote-desktop').hidden = !remoteApi;
+  $('#remote-browser-note').hidden = !!remoteApi;
+  refreshRemote();
+  remoteDialog.showModal();
+});
+$('#remote-on').addEventListener('change', async e => {
+  const err = $('#remote-error');
+  err.hidden = true;
+  try {
+    renderRemoteInfo(await remoteApi.setEnabled(e.target.checked));
+  } catch (ex) {
+    err.textContent = `Couldn't start the phone remote: ${ex.message}`;
+    err.hidden = false;
+    e.target.checked = false;
+  }
+});
+$('#remote-reset').addEventListener('click', async () => {
+  if (confirm('Make a new link? Phones using the current one will be disconnected and need to scan again.')) {
+    renderRemoteInfo(await remoteApi.reset());
+  }
+});
+if (remoteApi) {
+  refreshRemote();
+  setInterval(refreshRemote, 3000); // keeps the "phones connected" count fresh
+}
+
 /* ---------- keyboard ---------- */
 
 document.addEventListener('keydown', e => {

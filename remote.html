@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e0f13">
+  <title>DJ Dudes Remote</title>
+  <style>
+    :root {
+      --bg: #0e0f13; --panel: #171920; --panel-2: #1f222b; --line: #2b2f3a;
+      --text: #e7e9ee; --muted: #8a90a0; --a: #2ec5ff; --b: #ff8a2e; --live: #3ddc84; --danger: #ff5d5d;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); }
+    body { padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto; user-select: none; }
+
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    h1 { margin: 0; font-size: 18px; letter-spacing: 1px; }
+    h1 span { color: var(--b); }
+    .conn { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .conn::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+    .conn.ok::before { background: var(--live); }
+
+    .status { font-size: 12px; color: var(--muted); min-height: 16px; margin: 0 2px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    button {
+      font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line);
+      border-radius: 10px; padding: 14px 8px; font-weight: 700; touch-action: manipulation;
+    }
+    button:active { transform: scale(.97); filter: brightness(1.2); }
+
+    .deck {
+      --c: var(--a); background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px; margin-bottom: 12px; transition: border-color .3s, box-shadow .3s;
+    }
+    .deck.B { --c: var(--b); }
+    .deck.live { border-color: var(--c); box-shadow: 0 0 0 1px var(--c); }
+    .deck-head { display: flex; align-items: center; gap: 10px; }
+    .letter { width: 34px; height: 34px; border-radius: 8px; background: var(--c); color: #000; font-weight: 800; display: grid; place-items: center; flex: none; }
+    .song { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song.empty { color: var(--muted); font-weight: 400; }
+    .badge { font-size: 10px; font-weight: 800; padding: 3px 7px; border-radius: 4px; background: var(--live); color: #000; display: none; }
+    .deck.live .badge { display: inline-block; }
+    .badge.loop { background: var(--c); display: inline-block; }
+    [hidden] { display: none !important; }
+
+    .bar { height: 6px; background: #0b0c10; border-radius: 3px; margin: 10px 0 4px; overflow: hidden; }
+    .bar div { height: 100%; width: 0; background: var(--c); }
+    .times { display: flex; justify-content: space-between; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .times .rem { color: var(--c); font-weight: 700; }
+    .next-up { font-size: 12px; color: var(--muted); margin: 6px 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .next-up b { color: var(--text); font-weight: 600; }
+
+    .controls { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 8px; }
+    .controls .play { font-size: 22px; background: var(--panel-2); }
+    .deck.playing .controls .play { background: var(--c); color: #000; border-color: var(--c); }
+
+    .mixer { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+    .xf { display: flex; align-items: center; gap: 10px; font-weight: 800; }
+    .xf .la { color: var(--a); } .xf .lb { color: var(--b); }
+    .xf-track { flex: 1; height: 10px; background: #0b0c10; border-radius: 5px; position: relative; }
+    .xf-knob { position: absolute; top: 50%; width: 18px; height: 28px; margin: -14px 0 0 -9px; background: #fff; border-radius: 4px; left: 50%; }
+
+    .fade-now {
+      width: 100%; margin: 12px 0 10px; padding: 20px; font-size: 22px; letter-spacing: 1px; border: none;
+      background: linear-gradient(90deg, var(--a), var(--b)); color: #000;
+    }
+    .fade-now.fading { animation: pulse .8s infinite; }
+    @keyframes pulse { 50% { opacity: .5; } }
+
+    .row { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .automix.on { border-color: var(--live); color: var(--live); }
+    .vol { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+    .vol input { flex: 1; accent-color: var(--live); height: 30px; }
+    .vol output { width: 38px; text-align: right; color: var(--text); }
+
+    .offline {
+      position: fixed; inset: auto 12px 12px; background: var(--danger); color: #000; font-weight: 700;
+      border-radius: 10px; padding: 12px; text-align: center; display: none;
+    }
+    .offline.show { display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DJ <span>Dudes</span> remote</h1>
+    <div class="conn" id="conn">Connecting…</div>
+  </header>
+  <div class="status" id="status"></div>
+
+  <section class="deck A" id="deck-A"></section>
+
+  <section class="mixer">
+    <div class="xf"><span class="la">A</span><div class="xf-track"><div class="xf-knob" id="xf-knob"></div></div><span class="lb">B</span></div>
+    <button class="fade-now" id="fade-now">FADE NOW</button>
+    <div class="row">
+      <button class="automix" id="automix">AUTOMIX OFF</button>
+    </div>
+    <label class="vol">MASTER
+      <input type="range" id="master" min="0" max="1.5" step="0.01" value="1">
+      <output id="master-out">100%</output>
+    </label>
+  </section>
+
+  <section class="deck B" id="deck-B"></section>
+
+  <div class="offline" id="offline">Lost connection to the PC — retrying…</div>
+
+  <template id="deck-tpl">
+    <div class="deck-head">
+      <span class="letter"></span>
+      <span class="song"></span>
+      <span class="badge loop-badge loop" hidden>REPEAT</span>
+      <span class="badge">LIVE</span>
+    </div>
+    <div class="bar"><div></div></div>
+    <div class="times"><span class="el">0:00</span><span class="rem">-0:00</span></div>
+    <div class="next-up"></div>
+    <div class="controls">
+      <button class="back">⏮ BACK</button>
+      <button class="play">▶</button>
+      <button class="next">NEXT ⏭</button>
+    </div>
+  </template>
+
+  <script>
+    'use strict';
+    const key = new URLSearchParams(location.search).get('k') || '';
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const fmt = s => {
+      if (!Number.isFinite(s) || s < 0) s = 0;
+      return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    };
+
+    let st = null;          // latest state from the PC
+    let receivedAt = 0;     // when it arrived, to tick the clocks smoothly in between
+    let masterDragging = false;
+
+    async function send(action, deck, value) {
+      if (navigator.vibrate) navigator.vibrate(15);
+      try {
+        const res = await fetch(`/cmd?k=${encodeURIComponent(key)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, deck, value }),
+        });
+        if (res.status === 403) location.reload(); // shows the "link out of date" page
+      } catch {
+        showOffline(true);
+      }
+    }
+
+    const ui = {};
+    for (const id of ['A', 'B']) {
+      const root = $(`#deck-${id}`);
+      root.append($('#deck-tpl').content.cloneNode(true));
+      $('.letter', root).textContent = id;
+      ui[id] = {
+        root,
+        song: $('.song', root),
+        bar: $('.bar div', root),
+        el: $('.el', root),
+        rem: $('.rem', root),
+        nextUp: $('.next-up', root),
+        play: $('.play', root),
+        loop: $('.loop-badge', root),
+      };
+      $('.play', root).addEventListener('click', () => send('toggle', id));
+      $('.next', root).addEventListener('click', () => {
+        if (st && st[id].audible && !confirm(`Deck ${id} is playing out loud. Skip to the next song now?`)) return;
+        send('next', id);
+      });
+      $('.back', root).addEventListener('click', () => {
+        if (st && st[id].audible && st[id].elapsed <= 3 && !confirm(`Deck ${id} is playing out loud. Go back to the previous song?`)) return;
+        send('back', id);
+      });
+    }
+
+    $('#fade-now').addEventListener('click', () => send('fadeNow'));
+    $('#automix').addEventListener('click', () => send('automix'));
+    const masterIn = $('#master');
+    masterIn.addEventListener('input', () => {
+      masterDragging = true;
+      $('#master-out').textContent = `${Math.round(masterIn.value * 100)}%`;
+      send('master', null, +masterIn.value);
+    });
+    masterIn.addEventListener('change', () => { masterDragging = false; });
+
+    function render() {
+      if (!st) return;
+      const since = (performance.now() - receivedAt) / 1000;
+      for (const id of ['A', 'B']) {
+        const d = st[id], u = ui[id];
+        let t = d.elapsed + (d.playing ? since * (d.rate || 1) : 0);
+        const dur = d.duration || 0;
+        if (dur) t = d.loop ? t % dur : Math.min(t, dur);
+        u.root.classList.toggle('live', d.audible);
+        u.root.classList.toggle('playing', d.playing);
+        u.song.textContent = d.name || 'No song loaded';
+        u.song.classList.toggle('empty', !d.name);
+        u.loop.hidden = !d.loop;
+        u.bar.style.width = dur ? `${(t / dur) * 100}%` : '0';
+        u.el.textContent = fmt(t);
+        u.rem.textContent = `-${fmt((dur - t) / (d.rate || 1))}`;
+        u.play.textContent = d.playing ? '❚❚' : '▶';
+        u.nextUp.innerHTML = '';
+        if (d.upNext.length) {
+          u.nextUp.append('Up next: ');
+          const b = document.createElement('b');
+          b.textContent = d.upNext[0];
+          u.nextUp.append(b);
+          if (d.queued > 1) u.nextUp.append(` + ${d.queued - 1} more`);
+        } else {
+          u.nextUp.textContent = 'Queue empty';
+        }
+      }
+      $('#xf-knob').style.left = `${st.xfade * 100}%`;
+      const fadeBtn = $('#fade-now');
+      fadeBtn.textContent = st.fading ? 'FADING…' : `FADE NOW → ${st.next}`;
+      fadeBtn.classList.toggle('fading', st.fading);
+      const am = $('#automix');
+      am.textContent = st.automix ? `AUTOMIX ON · fades ${st.startBefore}s before end` : 'AUTOMIX OFF';
+      am.classList.toggle('on', st.automix);
+      $('#status').textContent = st.status;
+      if (!masterDragging && document.activeElement !== masterIn) {
+        masterIn.value = st.master;
+        $('#master-out').textContent = `${Math.round(st.master * 100)}%`;
+      }
+    }
+
+    function showOffline(off) {
+      $('#offline').classList.toggle('show', off);
+      const c = $('#conn');
+      c.classList.toggle('ok', !off);
+      c.textContent = off ? 'Offline' : 'Connected';
+    }
+
+    // Live updates from the PC. EventSource reconnects by itself if the
+    // phone sleeps or the Wi-Fi blips.
+    const events = new EventSource(`/events?k=${encodeURIComponent(key)}`);
+    events.onopen = () => showOffline(false);
+    events.onerror = () => showOffline(true);
+    events.onmessage = e => {
+      st = JSON.parse(e.data);
+      receivedAt = performance.now();
+      showOffline(false);
+      render();
+    };
+    setInterval(render, 250);
+  </script>
+</body>
+</html>

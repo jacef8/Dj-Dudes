@@ -207,3 +207,17 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 
 .pl-list .pl-empty { color: var(--muted); justify-content: center; padding: 20px; }
 .pl-foot { display: flex; justify-content: space-between; margin-top: 14px; }
 .pl-foot form { margin-left: auto; }
+
+/* ---------- phone remote ---------- */
+#remote-btn.has-phones { border-color: var(--live); color: var(--live); }
+.remote-dialog { width: min(520px, 92vw); max-width: none; }
+.remote-toggle { font-size: 15px; color: var(--text); align-items: center; }
+.remote-toggle input { width: 18px; height: 18px; }
+.remote-qr { display: grid; place-items: center; margin: 14px 0; }
+.remote-qr svg { background: #fff; border-radius: 8px; width: 210px; height: 210px; }
+.remote-steps { font-size: 13px; color: var(--muted); padding-left: 20px; }
+.remote-steps li { margin: 4px 0; }
+.remote-urls { font-family: ui-monospace, Consolas, monospace; font-size: 13px; user-select: all; word-break: break-all; }
+.remote-urls div { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin: 4px 0; }
+.remote-phones { font-size: 13px; color: var(--live); }
+.remote-error { color: var(--danger); font-size: 13px; }

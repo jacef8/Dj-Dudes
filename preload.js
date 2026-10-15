@@ -13,4 +13,12 @@ contextBridge.exposeInMainWorld('native', {
   savePlaylist: (name, items) => ipcRenderer.invoke('save-playlist', name, items),
   deletePlaylist: name => ipcRenderer.invoke('delete-playlist', name),
   openPlaylistFolder: () => ipcRenderer.invoke('open-playlist-folder'),
+
+  remote: {
+    info: () => ipcRenderer.invoke('remote-info'),
+    setEnabled: on => ipcRenderer.invoke('remote-set-enabled', on),
+    reset: () => ipcRenderer.invoke('remote-reset'),
+    sendState: state => ipcRenderer.send('remote-state', state),
+    onCommand: cb => ipcRenderer.on('remote-cmd', (_e, cmd) => cb(cmd)),
+  },
 });
