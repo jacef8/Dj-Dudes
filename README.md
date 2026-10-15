@@ -31,6 +31,8 @@ npm run dist
 4. **Or let it mix.** Turn on **AUTOMIX**. It plays A, then fades into B, then into the next song on A, and so on.
    - **Automix starts** sets how many seconds before the end of each song the fade begins (1–60s).
    - **Fade duration** sets how long the fade takes (1–30s). If the fade starts closer to the end than the fade duration, the fade is shortened so it finishes when the song does.
+   - **How a fade works:** the next song starts playing at the *beginning* of the fade. During the fade both songs play at once, the old one getting quieter and the new one louder. When the fade finishes, the old deck stops and loads its next song.
+   - With **Repeat queues** ticked, songs that finish go back to the end of their queue, so the set loops forever.
    - If **Share queues** is ticked and one side runs out, the deck takes its next song from the other side's queue. That means you can put a whole playlist in Queue A and the decks will still alternate.
 
 ### Deck controls
@@ -39,6 +41,7 @@ npm run dist
 | ▶ / ❚❚ | Play / pause |
 | CUE | When paused, sets the cue point (yellow line). When playing, jumps back to the cue point and stops |
 | NEXT ⏭ | Loads the next song from this deck's queue |
+| REPEAT ⟲ | Loops the current song. Automix stays on this deck until you turn it off or press FADE NOW |
 | HI / MID / LOW | 3-band EQ (pull LOW down to kill the bass during a transition) |
 | PITCH | ±8% speed |
 | VOL | Deck volume (channel fader) |

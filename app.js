@@ -45,6 +45,7 @@ const state = {
   curve: 'power',
   automix: false,
   share: true,
+  repeatAll: false, // finished songs go back to the end of their queue
   live: null,      // 'A' | 'B' — the deck automix considers "on air"
 };
 
@@ -196,6 +197,8 @@ class Deck {
   /* ----- transport ----- */
 
   load(track) {
+    // With "repeat queues" on, the song being replaced goes to the back of the line.
+    if (state.repeatAll && this.track && this.track !== track) this.queue.push(this.track);
     this.el.pause();
     if (this.url) URL.revokeObjectURL(this.url);
     this.track = track;
@@ -213,7 +216,8 @@ class Deck {
     renderQueues();
   }
 
-  unload() {
+  unload(requeue = false) {
+    if (requeue && state.repeatAll && this.track) this.queue.push(this.track);
     this.el.pause();
     this.el.removeAttribute('src');
     this.el.load();
@@ -229,6 +233,8 @@ class Deck {
   loadNext() {
     let track = this.queue.shift();
     if (!track && state.share) track = this.other.queue.shift();
+    // Repeat with only one song left: play it again.
+    if (!track && state.repeatAll && this.track && this.el.ended) track = this.track;
     if (!track) return false;
     this.load(track);
     return true;
@@ -286,6 +292,14 @@ class Deck {
 
     this.ui.play.addEventListener('click', () => this.toggle());
     $('.cue', root).addEventListener('click', () => this.cue());
+    const loopBtn = $('.loop', root);
+    loopBtn.addEventListener('click', () => {
+      this.el.loop = !this.el.loop;
+      loopBtn.setAttribute('aria-pressed', String(this.el.loop));
+      setStatus(this.el.loop
+        ? `Deck ${this.id} will repeat this song until you turn REPEAT off or press FADE NOW.`
+        : `Deck ${this.id} repeat off.`);
+    });
     $('.next', root).addEventListener('click', () => {
       if (!this.confirmInterrupt()) return;
       if (!this.loadNext()) setStatus(`Deck ${this.id}: queue is empty.`);
@@ -622,7 +636,7 @@ function updateFade() {
     // stop it and line up its next one.
     const silent = [decks.A, decks.B].find(d => curveGains(state.xfade)[d.side] < 1e-3);
     if (state.automix && silent && silent.isPlaying) {
-      if (!silent.loadNext()) silent.unload();
+      if (!silent.loadNext()) silent.unload(true);
     }
   }
 }
@@ -689,6 +703,7 @@ $('#curve').addEventListener('change', e => {
 });
 
 $('#share').addEventListener('change', e => { state.share = e.target.checked; });
+$('#repeat-all').addEventListener('change', e => { state.repeatAll = e.target.checked; });
 
 $('#master').addEventListener('input', e => setParamNow(master.gain, +e.target.value));
 
@@ -761,7 +776,7 @@ function automixTick() {
     }
   }
 
-  if (state.fade) return;
+  if (state.fade || live.el.loop) return; // a repeating song never "ends"
   const next = live.other;
   const rem = live.remaining;
   if (Number.isFinite(rem) && rem <= state.startBefore && !next.isPlaying && !next.isSpent) {
