@@ -65,16 +65,30 @@ function curveGains(x, curve = state.curve) {
 
 let nextTrackId = 1;
 
-function makeTrack(file) {
+/**
+ * A song. It has a `file` (picked or dropped this session, or restored from a
+ * browser-saved playlist) and/or a `path` on disk (desktop app only).
+ */
+function makeTrack({ file = null, path = '', name = '', duration = NaN }) {
+  const fileName = file ? file.name : path.split(/[\\/]/).pop();
   const track = {
     id: nextTrackId++,
     file,
-    name: file.name.replace(/\.[^.]+$/, ''),
-    duration: NaN,
+    path,
+    fileName,
+    name: name || fileName.replace(/\.[^.]+$/, ''),
+    duration,
     peaks: null,
   };
-  probeDuration(track);
+  if (file && !Number.isFinite(duration)) probeDuration(track);
   return track;
+}
+
+/** The song's audio data, read from disk if needed. */
+async function trackBlob(track) {
+  if (track.file) return track.file;
+  if (!window.native) throw new Error('file is not available');
+  return new Blob([await window.native.readFile(track.path)]);
 }
 
 function probeDuration(track) {
@@ -94,12 +108,12 @@ function probeDuration(track) {
 // Decode one file at a time so a big folder drop doesn't eat all memory.
 let decodeChain = Promise.resolve();
 
-function computePeaks(track, buckets = 1200) {
+function computePeaks(track, blob, buckets = 1200) {
   if (track.peaks) return Promise.resolve(track.peaks);
   decodeChain = decodeChain.then(async () => {
     if (track.peaks) return track.peaks;
     try {
-      const buf = await ctx.decodeAudioData(await track.file.arrayBuffer());
+      const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
       const l = buf.getChannelData(0);
       const r = buf.numberOfChannels > 1 ? buf.getChannelData(1) : l;
       const step = Math.max(1, Math.floor(l.length / buckets));
@@ -135,6 +149,9 @@ class Deck {
     this.url = null;
     this.cuePoint = 0;
     this.meterLevel = 0;
+    this.history = [];      // songs this deck played before, for BACK
+    this.ready = false;     // audio source attached
+    this.playWhenReady = false;
 
     // Audio chain
     this.el = new Audio();
@@ -196,28 +213,76 @@ class Deck {
 
   /* ----- transport ----- */
 
-  load(track) {
-    // With "repeat queues" on, the song being replaced goes to the back of the line.
-    if (state.repeatAll && this.track && this.track !== track) this.queue.push(this.track);
+  /** Remember the outgoing song so BACK can return to it. */
+  retire(track) {
+    if (!track) return;
+    this.history.push(track);
+    if (this.history.length > 100) this.history.shift();
+  }
+
+  load(track, { back = false } = {}) {
+    if (!back && this.track && this.track !== track) {
+      // With "repeat queues" on, the song being replaced goes to the back of the line.
+      if (state.repeatAll) this.queue.push(this.track);
+      this.retire(this.track);
+    }
     this.el.pause();
+    this.el.removeAttribute('src');
     if (this.url) URL.revokeObjectURL(this.url);
+    this.url = null;
+    this.ready = false;
+    this.playWhenReady = false;
     this.track = track;
     this.cuePoint = 0;
-    this.url = URL.createObjectURL(track.file);
-    this.el.src = this.url;
-    this.el.load();
     this.ui.title.textContent = track.name;
     this.ui.sub.textContent = 'Loading…';
-    this.el.addEventListener('loadedmetadata', () => {
-      if (this.track === track) this.ui.sub.textContent = `${fmtTime(this.el.duration)} · ${track.file.name}`;
-    }, { once: true });
-    computePeaks(track).then(() => this.resizeCanvas());
     this.renderState();
     renderQueues();
+
+    const attach = blob => {
+      if (this.track !== track) return; // something else got loaded meanwhile
+      this.url = URL.createObjectURL(blob);
+      this.el.src = this.url;
+      this.el.load();
+      this.ready = true;
+      this.el.addEventListener('loadedmetadata', () => {
+        if (this.track !== track) return;
+        track.duration = this.el.duration;
+        this.ui.sub.textContent = `${fmtTime(this.el.duration)} · ${track.fileName}`;
+      }, { once: true });
+      if (this.playWhenReady) this.start();
+      computePeaks(track, blob).then(() => this.resizeCanvas());
+    };
+    if (track.file) {
+      attach(track.file); // attach right away so play() works immediately
+    } else {
+      trackBlob(track).then(attach).catch(err => {
+        if (this.track !== track) return;
+        setStatus(`Deck ${this.id}: couldn't open "${track.fileName}" (${err.message}) — skipping.`);
+        this.unload();
+        automixTick();
+      });
+    }
+  }
+
+  /** Start playback now, or as soon as the song finishes loading from disk. */
+  start() {
+    if (!this.track) return;
+    if (!this.ready) {
+      this.playWhenReady = true;
+      return;
+    }
+    this.playWhenReady = false;
+    this.el.play().catch(err => {
+      if (err.name !== 'AbortError') setStatus(`Deck ${this.id}: ${err.message}`);
+    });
   }
 
   unload(requeue = false) {
     if (requeue && state.repeatAll && this.track) this.queue.push(this.track);
+    if (requeue) this.retire(this.track);
+    this.ready = false;
+    this.playWhenReady = false;
     this.el.pause();
     this.el.removeAttribute('src');
     this.el.load();
@@ -251,7 +316,37 @@ class Deck {
       fadeTo(this.side, 0.25);
     }
     if (!this.other.isPlaying) state.live = this.id;
-    this.el.play().catch(err => setStatus(`Deck ${this.id}: ${err.message}`));
+    this.start();
+  }
+
+  /** NEXT: skip to the next song, keep playing if we were. */
+  next() {
+    const wasPlaying = this.isPlaying;
+    if (!this.loadNext()) {
+      setStatus(`Deck ${this.id}: queue is empty.`);
+      return;
+    }
+    if (wasPlaying) this.start();
+  }
+
+  /** BACK: restart the song, or (near its start) go to the previous one. */
+  back() {
+    if (!this.track) return;
+    const wasPlaying = this.isPlaying;
+    if (this.el.currentTime > 3 || !this.history.length) {
+      this.el.currentTime = 0;
+      if (!this.history.length) setStatus(`Deck ${this.id}: back to the start (no earlier song on this deck).`);
+      return;
+    }
+    const prev = this.history.pop();
+    // "Repeat queues" may have put it back in a queue already — take it out.
+    for (const d of [decks.A, decks.B]) {
+      const i = d.queue.indexOf(prev);
+      if (i >= 0) d.queue.splice(i, 1);
+    }
+    this.queue.unshift(this.track); // the current song becomes "up next" again
+    this.load(prev, { back: true });
+    if (wasPlaying) this.start();
   }
 
   pause() { this.el.pause(); }
@@ -301,8 +396,11 @@ class Deck {
         : `Deck ${this.id} repeat off.`);
     });
     $('.next', root).addEventListener('click', () => {
-      if (!this.confirmInterrupt()) return;
-      if (!this.loadNext()) setStatus(`Deck ${this.id}: queue is empty.`);
+      if (this.confirmInterrupt()) this.next();
+    });
+    $('.back', root).addEventListener('click', () => {
+      // Restarting the song is harmless; only ask before swapping songs on air.
+      if (this.el.currentTime > 3 || !this.history.length || this.confirmInterrupt()) this.back();
     });
 
     const bindSlider = (cls, apply) => {
@@ -469,7 +567,8 @@ class Deck {
       if (files.length) setStatus('None of those files look like audio.');
       return;
     }
-    this.queue.splice(index, 0, ...audio.map(makeTrack));
+    this.queue.splice(index, 0, ...audio.map(file =>
+      makeTrack({ file, path: window.native ? window.native.pathForFile(file) : '' })));
     setStatus(`Added ${audio.length} song${audio.length > 1 ? 's' : ''} to Queue ${this.id}.`);
     renderQueues();
     if (!this.track && !this.isPlaying) this.loadNext();
@@ -489,7 +588,7 @@ class Deck {
       li.className = 'q-item' + (i === 0 ? ' up-next' : '');
       li.draggable = true;
       li.dataset.id = track.id;
-      li.title = `${track.file.name}\nDouble-click to load on deck ${this.id}`;
+      li.title = `${track.path || track.fileName}\nDouble-click to load on deck ${this.id}`;
       li.innerHTML = `
         <span class="q-num"></span>
         <span class="q-name"></span>
@@ -649,7 +748,7 @@ function transitionTo(deck, dur = state.fadeSec) {
     return false;
   }
   if (!deck.isPlaying) {
-    deck.el.play().catch(err => setStatus(`Deck ${deck.id}: ${err.message}`));
+    deck.start();
   }
   state.live = deck.id;
   fadeTo(deck.side, dur);
@@ -770,7 +869,7 @@ function automixTick() {
       }
       setXfade(ready.side);
       state.live = ready.id;
-      ready.el.play().catch(err => setStatus(`Deck ${ready.id}: ${err.message}`));
+      ready.start();
       setStatus(`Automix: playing deck ${ready.id}: ${ready.track.name}`);
       return;
     }
@@ -803,13 +902,197 @@ function frame() {
 }
 requestAnimationFrame(frame);
 
+/* ---------- playlists ---------- */
+
+/**
+ * Desktop app: playlists are .m3u8 files (Documents/DJ Dudes/Playlists) that
+ * point at your music where it already lives on disk.
+ */
+const desktopStore = {
+  async where() {
+    return `Saved as .m3u8 playlist files in ${await window.native.playlistDir()}. They point at your music files, so don't move or rename those.`;
+  },
+  list: () => window.native.listPlaylists(),
+  async load(name) {
+    const items = await window.native.readPlaylist(name);
+    const found = items.filter(i => i.exists);
+    return {
+      tracks: found.map(i => makeTrack({ path: i.path, name: i.title, duration: i.duration })),
+      missing: items.length - found.length,
+    };
+  },
+  async save(name, tracks) {
+    const usable = tracks.filter(t => t.path);
+    await window.native.savePlaylist(name, usable.map(t => ({ path: t.path, title: t.name, duration: t.duration })));
+    return tracks.length - usable.length;
+  },
+  remove: name => window.native.deletePlaylist(name),
+};
+
+/**
+ * Plain browser: a web page can't reopen files by their location, so a copy of
+ * each song is stored with the playlist in the browser's own storage.
+ */
+const browserStore = {
+  db: null,
+  open() {
+    this.db ??= new Promise((resolve, reject) => {
+      const req = indexedDB.open('dj-dudes', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('playlists', { keyPath: 'name' });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return this.db;
+  },
+  async run(mode, fn) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('playlists', mode);
+      const req = fn(tx.objectStore('playlists'));
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = tx.onabort = () => reject(tx.error);
+    });
+  },
+  async where() {
+    return 'Saved inside this browser, with a copy of each song. (The desktop app saves normal .m3u8 playlist files instead.)';
+  },
+  async list() {
+    const all = await this.run('readonly', s => s.getAll());
+    return all.map(p => ({ name: p.name, count: p.tracks.length, savedAt: p.savedAt }));
+  },
+  async load(name) {
+    const p = await this.run('readonly', s => s.get(name));
+    return {
+      tracks: p.tracks.map(t => makeTrack({ file: t.file, name: t.name, duration: t.duration })),
+      missing: 0,
+    };
+  },
+  async save(name, tracks) {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+    const usable = tracks.filter(t => t.file);
+    await this.run('readwrite', s => s.put({
+      name,
+      savedAt: Date.now(),
+      tracks: usable.map(t => ({ name: t.name, duration: t.duration, file: t.file })),
+    }));
+    return tracks.length - usable.length;
+  },
+  remove(name) { return this.run('readwrite', s => s.delete(name)); },
+};
+
+const playlists = window.native ? desktopStore : browserStore;
+const plDialog = $('#playlists');
+const plName = $('#pl-name');
+
+/** What a deck is lined up to play: the loaded song (unless finished) and its queue. */
+function setFor(deck) {
+  return [...(deck.isSpent ? [] : [deck.track]), ...deck.queue];
+}
+
+async function renderPlaylists() {
+  const list = $('#pl-list');
+  let items;
+  try {
+    items = await playlists.list();
+  } catch (err) {
+    list.innerHTML = '<li class="pl-empty"></li>';
+    $('.pl-empty', list).textContent = `Couldn't read playlists: ${err.message}`;
+    return;
+  }
+  list.textContent = '';
+  if (!items.length) {
+    list.innerHTML = '<li class="pl-empty">No saved playlists yet.</li>';
+    return;
+  }
+  items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  for (const p of items) {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="pl-name"></span>
+      <span class="pl-meta"></span>
+      <button class="to-a" title="Add these songs to the end of Queue A">Add to A</button>
+      <button class="to-b" title="Add these songs to the end of Queue B">Add to B</button>
+      <button class="del" title="Delete this playlist (your music files are not touched)">✕</button>`;
+    $('.pl-name', li).textContent = p.name;
+    $('.pl-meta', li).textContent = `${p.count} song${p.count === 1 ? '' : 's'}`;
+    $('.to-a', li).addEventListener('click', () => openPlaylist(p.name, decks.A));
+    $('.to-b', li).addEventListener('click', () => openPlaylist(p.name, decks.B));
+    $('.del', li).addEventListener('click', async () => {
+      if (!confirm(`Delete the playlist "${p.name}"? Your music files are not touched.`)) return;
+      await playlists.remove(p.name);
+      renderPlaylists();
+    });
+    list.append(li);
+  }
+}
+
+async function openPlaylist(name, deck) {
+  try {
+    const { tracks, missing } = await playlists.load(name);
+    deck.queue.push(...tracks);
+    if (!deck.track && !deck.isPlaying) deck.loadNext();
+    renderQueues();
+    let msg = `Added "${name}" (${tracks.length} songs) to Queue ${deck.id}.`;
+    if (missing) msg += ` ${missing} song${missing === 1 ? " wasn't" : "s weren't"} found — moved or deleted?`;
+    setStatus(msg);
+    plDialog.close();
+  } catch (err) {
+    setStatus(`Couldn't open "${name}": ${err.message}`);
+  }
+}
+
+async function savePlaylist(deck) {
+  const name = plName.value.trim();
+  if (!name) {
+    plName.focus();
+    plName.placeholder = 'Type a name first';
+    return;
+  }
+  const tracks = setFor(deck);
+  if (!tracks.length) {
+    setStatus(`Queue ${deck.id} is empty — nothing to save.`);
+    return;
+  }
+  const existing = await playlists.list();
+  if (existing.some(p => p.name.toLowerCase() === name.toLowerCase()) &&
+      !confirm(`A playlist called "${name}" already exists. Replace it?`)) return;
+  try {
+    const skipped = await playlists.save(name, tracks);
+    let msg = `Saved "${name}" (${tracks.length - skipped} songs from deck ${deck.id}).`;
+    if (skipped) msg += ` ${skipped} couldn't be saved.`;
+    setStatus(msg);
+    plName.value = '';
+    renderPlaylists();
+  } catch (err) {
+    setStatus(`Couldn't save "${name}": ${err.message}`);
+  }
+}
+
+function showPlaylists(focusSave = false) {
+  playlists.where().then(text => { $('#pl-where').textContent = text; });
+  $('#pl-open-folder').hidden = !window.native;
+  renderPlaylists();
+  plDialog.showModal();
+  if (focusSave) plName.focus();
+}
+
+$('#pl-save-form').addEventListener('submit', e => {
+  e.preventDefault();
+  savePlaylist(decks[e.submitter && e.submitter.value === 'B' ? 'B' : 'A']);
+});
+$('#playlists-btn').addEventListener('click', () => showPlaylists());
+$('#pl-open-folder').addEventListener('click', () => window.native.openPlaylistFolder());
+for (const deck of [decks.A, decks.B]) {
+  $('.save-pl', deck.qroot).addEventListener('click', () => showPlaylists(true));
+}
+
 /* ---------- keyboard ---------- */
 
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const t = e.target;
   if (t.matches('select, textarea, input:not([type="range"])')) return;
-  if ($('#help').open) return;
+  if (document.querySelector('dialog[open]')) return;
   const onRange = t.matches('input[type="range"]');
 
   const actions = {
@@ -818,6 +1101,10 @@ document.addEventListener('keydown', e => {
     x: () => transitionTo(decks.A),
     n: () => transitionTo(decks.B),
     a: () => automixBtn.click(),
+    q: () => decks.A.back(),
+    w: () => decks.A.next(),
+    o: () => decks.B.back(),
+    p: () => decks.B.next(),
     ' ': () => transitionTo(nonLiveDeck()),
     arrowleft: () => !onRange && setXfade(state.xfade - 0.05),
     arrowright: () => !onRange && setXfade(state.xfade + 0.05),

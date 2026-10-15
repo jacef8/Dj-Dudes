@@ -35,12 +35,20 @@ npm run dist
    - With **Repeat queues** ticked, songs that finish go back to the end of their queue, so the set loops forever.
    - If **Share queues** is ticked and one side runs out, the deck takes its next song from the other side's queue. That means you can put a whole playlist in Queue A and the decks will still alternate.
 
+### Playlists
+Click **📁 Playlists** (top right) or **Save** on a queue.
+- **Save Queue A / B** saves the song on that deck plus everything in its queue, in order.
+- **Add to A / Add to B** puts a saved playlist's songs at the end of that queue.
+- **Desktop app:** playlists are saved as normal `.m3u8` files in `Documents\DJ Dudes\Playlists`. They point at your music where it already is, so if you move or rename a song, it gets skipped and you're told how many were missing. You can also drop `.m3u`/`.m3u8` playlists exported from other music software into that folder and they'll show up.
+- **Opening `index.html` in a browser:** a web page can't reopen files from where they sit on your PC, so a copy of each song is saved inside the browser with the playlist. This takes up disk space, and clearing the browser's site data deletes these playlists.
+
 ### Deck controls
 | Control | What it does |
 |---|---|
 | ▶ / ❚❚ | Play / pause |
 | CUE | When paused, sets the cue point (yellow line). When playing, jumps back to the cue point and stops |
-| NEXT ⏭ | Loads the next song from this deck's queue |
+| ⏮ BACK | In the first 3 seconds of a song, goes back to the previous song on this deck. After that, restarts the current song |
+| NEXT ⏭ | Skips to the next song in this deck's queue (keeps playing if it was) |
 | REPEAT ⟲ | Loops the current song. Automix stays on this deck until you turn it off or press FADE NOW |
 | HI / MID / LOW | 3-band EQ (pull LOW down to kill the bass during a transition) |
 | PITCH | ±8% speed |
@@ -62,6 +70,8 @@ Double-click any slider to reset it.
 | `Space` | FADE NOW (fade to the deck that isn't live) |
 | `←` / `→` | Nudge the crossfader |
 | `A` | Toggle automix |
+| `Q` / `W` | Back / next on deck A |
+| `O` / `P` | Back / next on deck B |
 
 ## How it works
 Everything runs locally with the browser's Web Audio API (`app.js`). Each deck's chain is: audio element → 3-band EQ → volume → crossfade gain → master. Crossfades are scheduled on the audio thread, so they stay smooth even when the app is in the background.
