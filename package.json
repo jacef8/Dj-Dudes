@@ -1,0 +1,23 @@
+{
+  "name": "dj-dudes",
+  "productName": "DJ Dudes",
+  "version": "1.0.0",
+  "description": "Two-deck DJ software: queue songs on side A and B and crossfade between them, by hand or with automix.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.djdudes.app",
+    "productName": "DJ Dudes",
+    "files": ["main.js", "index.html", "style.css", "app.js"],
+    "win": {
+      "target": ["nsis", "portable"]
+    }
+  }
+}

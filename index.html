@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DJ Dudes</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>DJ <span>Dudes</span></h1>
+    <div id="status" class="status">Add songs to Queue A and Queue B to get started.</div>
+    <label class="master">MASTER
+      <input type="range" id="master" min="0" max="1.5" step="0.01" value="1">
+    </label>
+    <button id="help-btn" class="icon-btn" title="Keyboard shortcuts">?</button>
+  </header>
+
+  <main>
+    <section class="decks">
+      <div class="deck" data-deck="A"></div>
+
+      <div class="mixer">
+        <button id="automix" class="automix" aria-pressed="false">
+          <span class="dot"></span> AUTOMIX <b>OFF</b>
+        </button>
+        <p class="hint">Plays your queues back to back, alternating A → B → A, fading each song into the next.</p>
+
+        <div class="fade-btns">
+          <button id="fade-a">◀ Fade to A</button>
+          <button id="fade-b">Fade to B ▶</button>
+        </div>
+
+        <label class="row">Fade length
+          <input type="range" id="fade-len" min="1" max="30" step="1" value="8">
+          <output id="fade-len-out">8s</output>
+        </label>
+
+        <label class="row">Curve
+          <select id="curve">
+            <option value="power">Smooth (equal power)</option>
+            <option value="linear">Linear</option>
+            <option value="cut">Fast cut</option>
+          </select>
+        </label>
+
+        <label class="check">
+          <input type="checkbox" id="share" checked>
+          Share queues: when one side runs out, take the next song from the other side
+        </label>
+
+        <div class="xfader-wrap">
+          <span class="xa">A</span>
+          <input type="range" id="xfader" min="0" max="1" step="0.001" value="0.5" title="Crossfader (double-click to center)">
+          <span class="xb">B</span>
+        </div>
+      </div>
+
+      <div class="deck" data-deck="B"></div>
+    </section>
+
+    <section class="queues">
+      <div class="queue" data-deck="A"></div>
+      <div class="queue" data-deck="B"></div>
+    </section>
+  </main>
+
+  <dialog id="help">
+    <h2>Keyboard shortcuts</h2>
+    <table>
+      <tr><td><kbd>Z</kbd></td><td>Play / pause deck A</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Play / pause deck B</td></tr>
+      <tr><td><kbd>X</kbd></td><td>Fade to deck A</td></tr>
+      <tr><td><kbd>N</kbd></td><td>Fade to deck B</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Fade to whichever deck is not live</td></tr>
+      <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>Nudge the crossfader</td></tr>
+      <tr><td><kbd>A</kbd></td><td>Toggle automix</td></tr>
+    </table>
+    <p>Drag songs from your computer onto a queue, drag songs between queues to move them, and double-click a song to load it on its deck now.</p>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
+
+  <template id="deck-tpl">
+    <div class="deck-head">
+      <span class="deck-letter"></span>
+      <div class="deck-title">
+        <div class="title">No track loaded</div>
+        <div class="sub">Add songs to this deck's queue below</div>
+      </div>
+      <span class="live-badge">LIVE</span>
+    </div>
+    <canvas class="wave" title="Click to jump to a spot in the song"></canvas>
+    <div class="time"><span class="elapsed">0:00</span><span class="pitch-readout">±0.0%</span><span class="remain">-0:00</span></div>
+    <div class="deck-body">
+      <div class="transport">
+        <button class="play" title="Play / pause">▶</button>
+        <button class="cue" title="Paused: set cue point here. Playing: jump back to cue point and stop">CUE</button>
+        <button class="next" title="Load the next song from this queue">NEXT ⏭</button>
+      </div>
+      <div class="knobs">
+        <label><input type="range" class="v eq-high" min="-26" max="6" step="0.5" value="0"><span>HI</span></label>
+        <label><input type="range" class="v eq-mid" min="-26" max="6" step="0.5" value="0"><span>MID</span></label>
+        <label><input type="range" class="v eq-low" min="-26" max="6" step="0.5" value="0"><span>LOW</span></label>
+        <label><input type="range" class="v pitch" min="-8" max="8" step="0.1" value="0"><span>PITCH</span></label>
+        <label class="vol"><input type="range" class="v volume" min="0" max="1" step="0.01" value="1"><span>VOL</span></label>
+        <div class="meter"><div class="meter-fill"></div></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="queue-tpl">
+    <div class="queue-head">
+      <h2>Queue <span class="q-letter"></span> <small class="q-count"></small></h2>
+      <div class="queue-actions">
+        <button class="add-files">+ Songs</button>
+        <button class="add-folder">+ Folder</button>
+        <button class="shuffle" title="Shuffle this queue">Shuffle</button>
+        <button class="clear" title="Remove every song from this queue">Clear</button>
+      </div>
+      <input type="file" class="file-input" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.webm" multiple hidden>
+      <input type="file" class="folder-input" webkitdirectory multiple hidden>
+    </div>
+    <ol class="queue-list"></ol>
+    <div class="queue-empty">Drop songs here, or use <b>+ Songs</b></div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
