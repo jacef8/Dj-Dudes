@@ -23,10 +23,9 @@
       <div class="deck" data-deck="A"></div>
 
       <div class="mixer">
-        <button id="automix" class="automix" aria-pressed="false">
+        <button id="automix" class="automix" aria-pressed="false" title="Plays your queues back to back, alternating A → B → A, fading each song into the next (A)">
           <span class="dot"></span> AUTOMIX <b>OFF</b>
         </button>
-        <p class="hint">Plays your queues back to back, alternating A → B → A, fading each song into the next.</p>
 
         <button id="fade-now" class="fade-now" title="Gradually fade over to the other deck (Space)">
           FADE NOW <span id="fade-now-dir">⇄</span>
@@ -46,8 +45,11 @@
           <input type="range" id="start-before" min="1" max="60" step="1" value="10">
           <output id="start-before-out">10s</output>
         </label>
-        <p class="hint" id="start-before-hint">Automix starts fading 10s before the end of each song.</p>
+        <p class="hint" id="start-before-hint">Fade begins 10s before each song ends.</p>
 
+        <details class="more">
+          <summary>More options</summary>
+          <div class="more-body">
         <label class="row">Curve
           <select id="curve">
             <option value="power">Smooth (equal power)</option>
@@ -65,6 +67,8 @@
           <input type="checkbox" id="share" checked>
           Share queues: when one side runs out, take the next song from the other side
         </label>
+          </div>
+        </details>
 
         <div class="xfader-wrap">
           <span class="xa">A</span>
@@ -160,11 +164,9 @@
       <div class="transport">
         <button class="play" title="Play / pause">▶</button>
         <button class="cue" title="Paused: set cue point here. Playing: jump back to cue point and stop">CUE</button>
-        <div class="skip">
-          <button class="back" title="Back: restart this song, or go to the previous one if it just started">⏮ BACK</button>
-          <button class="next" title="Skip to the next song in this queue">NEXT ⏭</button>
-        </div>
         <button class="loop" aria-pressed="false" title="Repeat this song over and over (automix waits on this deck while it's on)">REPEAT ⟲</button>
+        <button class="back" title="Back: restart this song, or go to the previous one if it just started">⏮ BACK</button>
+        <button class="next" title="Skip to the next song in this queue">NEXT ⏭</button>
       </div>
       <div class="knobs">
         <label><input type="range" class="v eq-high" min="-26" max="6" step="0.5" value="0"><span>HI</span></label>

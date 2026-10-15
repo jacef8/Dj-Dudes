@@ -31,4 +31,13 @@ if errorlevel 1 (
 )
 
 :run
+rem Once Electron is fully downloaded, start the app on its own so this window can close.
+if exist "node_modules\electron\dist\electron.exe" (
+  start "" "node_modules\electron\dist\electron.exe" .
+  exit /b
+)
+echo.
+echo  Finishing setup. Leave this window open while you use DJ Dudes this time.
+echo  From now on it will close by itself.
+echo.
 call npm start

@@ -16,7 +16,7 @@
 * { box-sizing: border-box; }
 
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
-body { display: flex; flex-direction: column; min-height: 100vh; user-select: none; }
+body { display: flex; flex-direction: column; height: 100vh; overflow-y: auto; user-select: none; }
 
 button, select {
   font: inherit; color: var(--text); background: var(--panel-2);
@@ -28,8 +28,8 @@ button:disabled { opacity: .4; cursor: default; }
 
 /* ---------- top bar ---------- */
 .topbar {
-  display: flex; align-items: center; gap: 20px;
-  padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+  display: flex; align-items: center; gap: 16px; flex: none;
+  padding: 6px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
 }
 .topbar h1 { margin: 0; font-size: 20px; letter-spacing: 1px; }
 .topbar h1 span { color: var(--b); }
@@ -37,15 +37,15 @@ button:disabled { opacity: .4; cursor: default; }
 .master { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
 .icon-btn { width: 32px; height: 32px; padding: 0; border-radius: 50%; }
 
-main { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 14px; min-height: 0; }
+main { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 10px; min-height: 0; }
 
 /* ---------- decks ---------- */
-.decks { display: grid; grid-template-columns: 1fr 300px 1fr; gap: 14px; }
+.decks { display: grid; grid-template-columns: 1fr 300px 1fr; gap: 10px; flex: none; }
 
 .deck {
   --c: var(--a);
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
   transition: border-color .3s, box-shadow .3s;
 }
 .deck[data-deck="B"] { --c: var(--b); }
@@ -53,7 +53,7 @@ main { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 14px;
 
 .deck-head { display: flex; align-items: center; gap: 12px; }
 .deck-letter {
-  width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center;
   background: var(--c); color: #000; font-weight: 800; font-size: 22px; flex: none;
 }
 .deck-title { flex: 1; min-width: 0; }
@@ -65,16 +65,16 @@ main { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 14px;
 }
 .deck.is-live .live-badge { visibility: visible; }
 
-.wave { width: 100%; height: 90px; background: #0b0c10; border-radius: 6px; cursor: pointer; display: block; }
+.wave { width: 100%; height: 64px; background: #0b0c10; border-radius: 6px; cursor: pointer; display: block; }
 
 .time { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; font-size: 14px; }
 .time .remain { color: var(--c); font-weight: 600; }
 .time .pitch-readout { color: var(--muted); font-size: 12px; }
 
-.deck-body { display: flex; gap: 16px; align-items: stretch; }
-.transport { display: flex; flex-direction: column; gap: 8px; width: 110px; flex: none; }
-.transport button { padding: 10px; font-weight: 700; }
-.transport .play { font-size: 22px; padding: 14px; background: #20252f; }
+.deck-body { display: flex; gap: 14px; align-items: stretch; }
+.transport { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 180px; flex: none; align-content: start; }
+.transport button { padding: 8px 4px; font-weight: 700; font-size: 12px; }
+.transport .play { grid-column: 1 / -1; font-size: 22px; padding: 8px; background: #20252f; }
 .deck.is-playing .transport .play { background: var(--c); color: #000; border-color: var(--c); }
 .transport .cue { color: #ffd34d; }
 .transport .loop[aria-pressed="true"] { background: var(--c); color: #000; border-color: var(--c); }
@@ -84,30 +84,30 @@ main { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 14px;
 .knobs .vol span { color: var(--c); font-weight: 700; }
 
 input[type="range"] { accent-color: var(--c, var(--a)); }
-input[type="range"].v { writing-mode: vertical-lr; direction: rtl; height: 120px; width: 22px; }
-.knobs .vol input { height: 140px; }
+input[type="range"].v { writing-mode: vertical-lr; direction: rtl; height: 96px; width: 22px; }
+.knobs .vol input { height: 110px; }
 
-.meter { width: 8px; height: 140px; background: #0b0c10; border-radius: 4px; position: relative; overflow: hidden; }
+.meter { width: 8px; height: 110px; background: #0b0c10; border-radius: 4px; position: relative; overflow: hidden; }
 .meter-fill {
   position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
   background: linear-gradient(to top, var(--live) 0%, var(--live) 65%, #ffd34d 80%, var(--danger) 100%);
-  background-size: 100% 140px; background-position: bottom;
+  background-size: 100% 110px; background-position: bottom;
 }
 
 /* ---------- mixer ---------- */
 .mixer {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-  padding: 14px; display: flex; flex-direction: column; gap: 12px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; position: relative;
 }
 .automix {
-  font-size: 16px; font-weight: 700; padding: 14px; letter-spacing: 1px;
+  font-size: 15px; font-weight: 700; padding: 8px; letter-spacing: 1px;
   display: flex; align-items: center; justify-content: center; gap: 10px;
 }
 .automix .dot { width: 10px; height: 10px; border-radius: 50%; background: #444; }
 .automix[aria-pressed="true"] { border-color: var(--live); color: var(--live); }
 .automix[aria-pressed="true"] .dot { background: var(--live); box-shadow: 0 0 10px var(--live); animation: pulse 1.2s infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
-.hint { margin: -4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+.hint { margin: -2px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 
 .fade-now {
   font-size: 18px; font-weight: 800; letter-spacing: 1px; padding: 16px;
@@ -126,13 +126,24 @@ input[type="range"].v { writing-mode: vertical-lr; direction: rtl; height: 120px
 .row output { width: 30px; text-align: right; color: var(--text); }
 .check { display: flex; gap: 8px; font-size: 12px; color: var(--muted); align-items: flex-start; }
 
-.xfader-wrap { margin-top: auto; display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.xfader-wrap { margin-top: auto; display: flex; align-items: center; gap: 10px; padding-top: 6px; border-top: 1px solid var(--line); }
 .xfader-wrap span { font-weight: 800; font-size: 18px; }
 .xa { color: var(--a); } .xb { color: var(--b); }
-#xfader { flex: 1; height: 36px; accent-color: #fff; }
+#xfader { flex: 1; height: 28px; accent-color: #fff; }
+
+/* "More options" pops out over the page instead of making the mixer taller */
+.more summary { font-size: 12px; color: var(--muted); cursor: pointer; text-align: center; list-style: none; }
+.more summary::-webkit-details-marker { display: none; }
+.more summary::after { content: " ▾"; }
+.more[open] summary::after { content: " ▴"; }
+.more-body {
+  position: absolute; left: 8px; right: 8px; z-index: 5; margin-top: 6px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5);
+}
 
 /* ---------- queues ---------- */
-.queues { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-height: 220px; }
+.queues { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 240px; }
 .queue {
   --c: var(--a);
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
@@ -141,26 +152,26 @@ input[type="range"].v { writing-mode: vertical-lr; direction: rtl; height: 120px
 .queue[data-deck="B"] { --c: var(--b); }
 .queue.drag-over { border-color: var(--c); background: #1b1f28; }
 
-.queue-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.queue-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .queue-head h2 { margin: 0; font-size: 15px; }
 .queue-head .q-letter { color: var(--c); }
 .queue-head small { color: var(--muted); font-weight: 400; margin-left: 6px; }
 .queue-actions { display: flex; gap: 6px; }
 .queue-actions button { padding: 4px 10px; font-size: 12px; }
 
-.queue-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; min-height: 0; max-height: 40vh; }
+.queue-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; min-height: 0; }
 .queue-empty { position: absolute; inset: 50px 0 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; pointer-events: none; }
 .queue.has-items .queue-empty { display: none; }
 
 .q-item {
-  display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px;
-  cursor: grab; font-size: 13px;
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px;
+  cursor: grab; font-size: 15px;
 }
 .q-item:hover { background: var(--panel-2); }
 .q-item.dragging { opacity: .4; }
 .q-item.drop-before { box-shadow: inset 0 2px 0 var(--c); }
 .q-item.up-next .q-num { background: var(--c); color: #000; }
-.q-num { width: 22px; height: 22px; flex: none; border-radius: 4px; background: var(--panel-2); display: grid; place-items: center; font-size: 11px; color: var(--muted); font-weight: 700; }
+.q-num { width: 24px; height: 24px; flex: none; border-radius: 4px; background: var(--panel-2); display: grid; place-items: center; font-size: 11px; color: var(--muted); font-weight: 700; }
 .q-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-dur { color: var(--muted); font-variant-numeric: tabular-nums; }
 .q-btns { display: flex; gap: 2px; opacity: 0; }
@@ -176,15 +187,11 @@ dialog h2 { margin-top: 0; }
 dialog td { padding: 4px 10px 4px 0; }
 kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
 
-@media (max-width: 1100px) {
+@media (max-width: 1000px) {
   .decks { grid-template-columns: 1fr 1fr; }
   .mixer { grid-column: 1 / -1; grid-row: 2; }
 }
 
-/* ---------- back / next ---------- */
-.skip { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.skip button { padding: 10px 4px; font-size: 12px; }
-.transport { width: 140px; }
 
 /* ---------- playlists ---------- */
 .pl-dialog { width: min(620px, 92vw); max-width: none; }

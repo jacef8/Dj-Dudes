@@ -779,8 +779,8 @@ fadeNowBtn.addEventListener('click', () => transitionTo(nonLiveDeck()));
 function updateFadeHint() {
   $('#fade-len-out').textContent = `${state.fadeSec}s`;
   $('#start-before-out').textContent = `${state.startBefore}s`;
-  let hint = `Automix starts fading ${state.startBefore}s before the end of each song`;
-  if (state.startBefore < state.fadeSec) hint += ` (so its fades are cut to ${state.startBefore}s)`;
+  let hint = `Fade begins ${state.startBefore}s before each song ends`;
+  if (state.startBefore < state.fadeSec) hint += ` (fades cut to ${state.startBefore}s)`;
   $('#start-before-hint').textContent = hint + '.';
 }
 
