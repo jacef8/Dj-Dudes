@@ -8,7 +8,9 @@ Two-deck DJ software for your PC. You queue up songs on **side A** and **side B*
 Double-click `index.html` to open it in **Chrome** or **Edge**.
 
 ### Option 2: desktop app (recommended)
-You need [Node.js](https://nodejs.org) (LTS) installed. Then, in this folder:
+**Easy way (Windows):** double-click **`Start DJ Dudes.bat`**. The first time, it checks for [Node.js](https://nodejs.org) (if it's missing, it opens the download page) and downloads what the app needs, which takes a minute or two and needs internet. After that, it opens straight away, even offline.
+
+**Or by hand:** install [Node.js](https://nodejs.org) (LTS), then in this folder:
 
 ```
 npm install
