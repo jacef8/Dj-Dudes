@@ -27,8 +27,10 @@ npm run dist
 
 1. **Add songs.** Click **+ Songs** or **+ Folder** on Queue A or Queue B, or drag files or folders from Explorer straight onto a queue. MP3, WAV, FLAC, OGG, M4A/AAC and Opus all work.
 2. **Arrange the queues.** Drag songs to reorder them, or drag them across to the other queue. On each song, **⇄** moves it to the other side, **✕** removes it, and **Load** (or a double-click) puts it on the deck right away.
-3. **Mix by hand.** Press ▶ on a deck, then click **Fade to A** / **Fade to B** to crossfade over the fade length you've set. You can also drag the crossfader yourself.
-4. **Or let it mix.** Turn on **AUTOMIX**. It plays A, then fades into B, then into the next song on A, and so on. Each crossfade starts *fade length* seconds before the current song ends.
+3. **Fade when you choose.** Press ▶ on a deck. When you're ready for the other side, hit the big **FADE NOW** button (or `Space`). It starts the other deck and glides the crossfader over for you, taking **Fade duration** seconds. **Fade to A** / **Fade to B** do the same toward a particular side. You can also drag the crossfader yourself.
+4. **Or let it mix.** Turn on **AUTOMIX**. It plays A, then fades into B, then into the next song on A, and so on.
+   - **Automix starts** sets how many seconds before the end of each song the fade begins (1–60s).
+   - **Fade duration** sets how long the fade takes (1–30s). If the fade starts closer to the end than the fade duration, the fade is shortened so it finishes when the song does.
    - If **Share queues** is ticked and one side runs out, the deck takes its next song from the other side's queue. That means you can put a whole playlist in Queue A and the decks will still alternate.
 
 ### Deck controls
@@ -54,7 +56,7 @@ Double-click any slider to reset it.
 |---|---|
 | `Z` / `M` | Play / pause deck A / B |
 | `X` / `N` | Fade to A / B |
-| `Space` | Fade to the deck that isn't live |
+| `Space` | FADE NOW (fade to the deck that isn't live) |
 | `←` / `→` | Nudge the crossfader |
 | `A` | Toggle automix |
 

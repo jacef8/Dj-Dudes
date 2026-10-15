@@ -26,15 +26,25 @@
         </button>
         <p class="hint">Plays your queues back to back, alternating A → B → A, fading each song into the next.</p>
 
+        <button id="fade-now" class="fade-now" title="Gradually fade over to the other deck (Space)">
+          FADE NOW <span id="fade-now-dir">⇄</span>
+        </button>
+
         <div class="fade-btns">
           <button id="fade-a">◀ Fade to A</button>
           <button id="fade-b">Fade to B ▶</button>
         </div>
 
-        <label class="row">Fade length
+        <label class="row" title="How long each fade takes, for the fade buttons and automix">Fade duration
           <input type="range" id="fade-len" min="1" max="30" step="1" value="8">
           <output id="fade-len-out">8s</output>
         </label>
+
+        <label class="row" title="Automix: how many seconds before the song ends to start fading into the next one">Automix starts
+          <input type="range" id="start-before" min="1" max="60" step="1" value="10">
+          <output id="start-before-out">10s</output>
+        </label>
+        <p class="hint" id="start-before-hint">Automix starts fading 10s before the end of each song.</p>
 
         <label class="row">Curve
           <select id="curve">
@@ -121,7 +131,7 @@
       <input type="file" class="folder-input" webkitdirectory multiple hidden>
     </div>
     <ol class="queue-list"></ol>
-    <div class="queue-empty">Drop songs here, or use <b>+ Songs</b></div>
+    <div class="queue-empty"><span>Drop songs here, or use <b>+ Songs</b></span></div>
   </template>
 
   <script src="app.js"></script>

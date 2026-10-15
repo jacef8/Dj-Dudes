@@ -108,6 +108,14 @@ input[type="range"].v { writing-mode: vertical-lr; direction: rtl; height: 120px
 @keyframes pulse { 50% { opacity: .35; } }
 .hint { margin: -4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 
+.fade-now {
+  font-size: 18px; font-weight: 800; letter-spacing: 1px; padding: 16px;
+  background: linear-gradient(90deg, var(--a), var(--b)); color: #000; border: none;
+}
+.fade-now:hover { filter: brightness(1.1); }
+.fade-now.fading { animation: pulse 0.8s infinite; }
+.row output { width: 34px; }
+
 .fade-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #fade-a { border-color: var(--a); color: var(--a); }
 #fade-b { border-color: var(--b); color: var(--b); }

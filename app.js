@@ -40,7 +40,8 @@ function resumeAudio() {
 const state = {
   xfade: 0.5,      // 0 = full A, 1 = full B
   fade: null,      // { from, target, start, dur } while an automated fade runs
-  fadeSec: 8,
+  fadeSec: 8,      // how long a fade takes
+  startBefore: 10, // automix: seconds before the end of a song to start fading
   curve: 'power',
   automix: false,
   share: true,
@@ -652,10 +653,34 @@ xfaderInput.addEventListener('dblclick', () => setXfade(0.5));
 $('#fade-a').addEventListener('click', () => transitionTo(decks.A));
 $('#fade-b').addEventListener('click', () => transitionTo(decks.B));
 
+/** The deck that isn't on air — where FADE NOW will take you. */
+function nonLiveDeck() {
+  const live = decks[state.live];
+  if (live && live.isPlaying) return live.other;
+  return state.xfade < 0.5 ? decks.B : decks.A;
+}
+
+const fadeNowBtn = $('#fade-now');
+fadeNowBtn.addEventListener('click', () => transitionTo(nonLiveDeck()));
+
+function updateFadeHint() {
+  $('#fade-len-out').textContent = `${state.fadeSec}s`;
+  $('#start-before-out').textContent = `${state.startBefore}s`;
+  let hint = `Automix starts fading ${state.startBefore}s before the end of each song`;
+  if (state.startBefore < state.fadeSec) hint += ` (so its fades are cut to ${state.startBefore}s)`;
+  $('#start-before-hint').textContent = hint + '.';
+}
+
 const fadeLen = $('#fade-len');
 fadeLen.addEventListener('input', () => {
   state.fadeSec = +fadeLen.value;
-  $('#fade-len-out').textContent = `${state.fadeSec}s`;
+  updateFadeHint();
+});
+
+const startBefore = $('#start-before');
+startBefore.addEventListener('input', () => {
+  state.startBefore = +startBefore.value;
+  updateFadeHint();
 });
 
 $('#curve').addEventListener('change', e => {
@@ -703,8 +728,9 @@ automixBtn.addEventListener('click', () => {
 /**
  * The automix brain. Runs a few times a second (and whenever a song ends):
  *  1. keep the idle deck loaded with the next song,
- *  2. when the live song gets within "fade length" of its end, start the other
- *     deck and crossfade into it,
+ *  2. when the live song gets within "automix starts" seconds of its end,
+ *     start the other deck and crossfade into it (taking "fade duration",
+ *     or less if the song is about to run out),
  *  3. if everything has stopped, start whatever is loaded.
  */
 function automixTick() {
@@ -738,7 +764,7 @@ function automixTick() {
   if (state.fade) return;
   const next = live.other;
   const rem = live.remaining;
-  if (Number.isFinite(rem) && rem <= state.fadeSec && !next.isPlaying && !next.isSpent) {
+  if (Number.isFinite(rem) && rem <= state.startBefore && !next.isPlaying && !next.isSpent) {
     transitionTo(next, clamp(rem, 0.5, state.fadeSec));
   }
 }
@@ -754,6 +780,8 @@ setInterval(() => {
 // Drawing loop.
 function frame() {
   updateFade();
+  fadeNowBtn.classList.toggle('fading', !!state.fade);
+  $('#fade-now-dir').textContent = state.fade ? '…' : `→ ${nonLiveDeck().id}`;
   decks.A.drawFrame();
   decks.B.drawFrame();
   requestAnimationFrame(frame);
@@ -775,7 +803,7 @@ document.addEventListener('keydown', e => {
     x: () => transitionTo(decks.A),
     n: () => transitionTo(decks.B),
     a: () => automixBtn.click(),
-    ' ': () => transitionTo(state.xfade < 0.5 ? decks.B : decks.A),
+    ' ': () => transitionTo(nonLiveDeck()),
     arrowleft: () => !onRange && setXfade(state.xfade - 0.05),
     arrowright: () => !onRange && setXfade(state.xfade + 0.05),
   };
@@ -797,6 +825,7 @@ window.addEventListener('drop', e => e.preventDefault());
 ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, resumeAudio, { once: true }));
 
 applyXfade();
+updateFadeHint();
 renderQueues();
 
 // Exposed for debugging from the dev tools console.
