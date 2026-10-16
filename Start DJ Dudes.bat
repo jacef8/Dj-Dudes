@@ -28,7 +28,9 @@ if not exist "node_modules\electron\dist\electron.exe" call node node_modules\el
 if not exist "node_modules\electron\dist\electron.exe" goto failed
 
 :run
-rem Open DJ Dudes on its own so this window can close,
+rem Open DJ Dudes on its own so this window can close. Without this setting the app
+rem hooks itself to this window to print messages, which keeps the window open.
+set ELECTRON_NO_ATTACH_CONSOLE=1
 start "" "node_modules\electron\dist\electron.exe" "%~dp0."
 rem then put a DJ Dudes icon on the Desktop and in the Start menu (refreshed every time).
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0make-shortcut.ps1" >nul 2>nul
