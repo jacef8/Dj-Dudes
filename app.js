@@ -1492,9 +1492,22 @@ setInterval(() => {
 function setScreens(on) {
   document.body.classList.toggle('no-screens', !on);
   $('#screens-btn').setAttribute('aria-pressed', String(on));
+  $('#screens-btn-label').textContent = on ? 'Screens: On' : 'Screens: Off';
   try { localStorage.setItem('dj-screens', on ? '1' : '0'); } catch { /* not important */ }
 }
-$('#screens-btn').addEventListener('click', () => setScreens(document.body.classList.contains('no-screens')));
+$('#screens-btn').addEventListener('click', () => {
+  const on = document.body.classList.contains('no-screens');
+  setScreens(on);
+  const yt = [decks.A, decks.B].filter(d => d.isYouTube).map(d => d.id);
+  if (on) {
+    setStatus('Screens on.');
+  } else if (yt.length) {
+    setStatus(`Screens off. Deck ${yt.join(' and ')} keeps its video while it plays YouTube (YouTube requires it), ` +
+      'so the rest of the screens hide once that song is done.');
+  } else {
+    setStatus('Screens off: more room for the queues.');
+  }
+});
 try { setScreens(localStorage.getItem('dj-screens') !== '0'); } catch { setScreens(true); }
 
 /* ---------- keyboard ---------- */

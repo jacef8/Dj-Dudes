@@ -24,7 +24,21 @@ const APP_FILES = {
   '/youtube.js': ['youtube.js', 'text/javascript'],
 };
 
-function startAppServer() {
+/**
+ * Always the same address, so settings the page remembers (like Screens on/off)
+ * survive a restart. Falls back to a few neighbours, then any free port.
+ */
+async function startAppServer() {
+  for (const port of [47820, 47821, 47822, 47823, 47824, 0]) {
+    try {
+      return await listenAppServer(port);
+    } catch (err) {
+      if (err.code !== 'EADDRINUSE') throw err;
+    }
+  }
+}
+
+function listenAppServer(port) {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const entry = APP_FILES[new URL(req.url, 'http://x').pathname];
@@ -36,7 +50,7 @@ function startAppServer() {
       fsSync.createReadStream(path.join(__dirname, entry[0])).pipe(res);
     });
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve(server.address().port));
+    server.listen(port, '127.0.0.1', () => resolve(server.address().port));
   });
 }
 
