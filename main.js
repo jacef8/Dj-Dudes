@@ -1,12 +1,46 @@
 // Electron entry point: opens DJ Dudes in its own desktop window.
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const http = require('http');
 const fs = require('fs/promises');
+const fsSync = require('fs');
 const path = require('path');
 const { fileURLToPath } = require('url');
 const { RemoteServer } = require('./remote-server');
 
 let mainWindow = null;
 let remote = null;
+
+/*
+ * The app's own pages are served from a private address on this PC
+ * (127.0.0.1, not reachable from the network). YouTube's player refuses to
+ * play inside pages opened straight from files, so this is what makes
+ * YouTube songs work.
+ */
+const APP_FILES = {
+  '/': ['index.html', 'text/html'],
+  '/index.html': ['index.html', 'text/html'],
+  '/style.css': ['style.css', 'text/css'],
+  '/app.js': ['app.js', 'text/javascript'],
+  '/youtube.js': ['youtube.js', 'text/javascript'],
+};
+
+function startAppServer() {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      const entry = APP_FILES[new URL(req.url, 'http://x').pathname];
+      if (!entry) {
+        res.writeHead(404).end();
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': `${entry[1]}; charset=utf-8`, 'Cache-Control': 'no-store' });
+      fsSync.createReadStream(path.join(__dirname, entry[0])).pipe(res);
+    });
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve(server.address().port));
+  });
+}
+
+let appPort = null;
 
 function createWindow() {
   const win = mainWindow = new BrowserWindow({
@@ -24,7 +58,7 @@ function createWindow() {
       autoplayPolicy: 'no-user-gesture-required',
     },
   });
-  win.loadFile(path.join(__dirname, 'index.html'));
+  win.loadURL(`http://127.0.0.1:${appPort}/index.html`);
 }
 
 /* ---------- playlists: .m3u8 files in Documents/DJ Dudes/Playlists ---------- */
@@ -59,7 +93,8 @@ function parseM3U(text, dir) {
     }
     if (line.startsWith('#')) continue;
     let p = line;
-    if (/^file:/i.test(p)) p = fileURLToPath(p);
+    if (/^https?:/i.test(p)) { /* a web link (e.g. a YouTube song): keep as is */ }
+    else if (/^file:/i.test(p)) p = fileURLToPath(p);
     else if (!path.isAbsolute(p)) p = path.resolve(dir, p);
     const duration = info && info.duration > 0 ? info.duration : NaN;
     items.push({ path: p, title: (info && info.title) || '', duration });
@@ -87,6 +122,7 @@ ipcMain.handle('read-playlist', async (_e, name) => {
   const file = await playlistFile(name);
   const items = parseM3U(await fs.readFile(file, 'utf8'), path.dirname(file));
   return Promise.all(items.map(async item => {
+    if (/^https?:/i.test(item.path)) return { ...item, exists: true };
     try {
       await fs.access(item.path);
       return { ...item, exists: true };
@@ -128,7 +164,11 @@ ipcMain.handle('remote-reset', async () => {
   return remote.info();
 });
 
+// Look like plain Chrome to websites (YouTube is pickier with unknown browsers).
+app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|dj-dudes|DJ Dudes)\/\S+/gi, '');
+
 app.whenReady().then(async () => {
+  appPort = await startAppServer();
   remote = new RemoteServer({
     settingsFile: path.join(app.getPath('userData'), 'remote.json'),
     onCommand: cmd => mainWindow && mainWindow.webContents.send('remote-cmd', cmd),

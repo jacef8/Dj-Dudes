@@ -13,6 +13,7 @@
     <label class="master">MASTER
       <input type="range" id="master" min="0" max="1.5" step="0.01" value="1">
     </label>
+    <button id="screens-btn" aria-pressed="true" title="Show or hide the visualizer screens (a deck playing YouTube always shows its video)">📺 Screens</button>
     <button id="remote-btn" title="Control DJ Dudes from your phone">📱 <span id="remote-btn-label">Remote</span></button>
     <button id="playlists-btn" title="Save and open playlists">📁 Playlists</button>
     <button id="help-btn" class="icon-btn" title="Keyboard shortcuts">?</button>
@@ -122,6 +123,34 @@
     </div>
   </dialog>
 
+  <dialog id="yt-dialog" class="yt-dialog">
+    <h2>Add from YouTube</h2>
+    <form id="yt-form">
+      <p class="yt-help">
+        Paste links from <b>YouTube</b> or <b>YouTube Music</b>: songs, playlists or albums, one per line.
+        In YouTube Music, use <b>⋮ → Share → Copy link</b>. You can also drag a link onto a queue, or press
+        <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere in DJ Dudes.
+      </p>
+      <textarea id="yt-links" rows="5" placeholder="https://music.youtube.com/watch?v=…" spellcheck="false"></textarea>
+      <div class="yt-buttons">
+        <button type="submit" value="A" class="pl-save-a">Add to Queue A</button>
+        <button type="submit" value="B" class="pl-save-b">Add to Queue B</button>
+      </div>
+      <p class="yt-progress" id="yt-progress"></p>
+      <div class="yt-preview" id="yt-preview" hidden></div>
+      <p class="yt-note">
+        YouTube songs need the internet while they play and may show ads. Some songs can't be played
+        outside YouTube; DJ Dudes skips those. Fades, automix and the phone remote work, but EQ and
+        pitch don't (YouTube doesn't let other apps change its sound).
+      </p>
+    </form>
+    <p id="yt-unsupported" hidden>
+      YouTube songs only work in the desktop app. Close this page and start DJ Dudes with
+      <b>Start DJ Dudes.bat</b>.
+    </p>
+    <form method="dialog" class="pl-foot"><button>Close</button></form>
+  </dialog>
+
   <dialog id="remote" class="remote-dialog">
     <h2>📱 Phone remote</h2>
     <div id="remote-desktop">
@@ -158,6 +187,10 @@
       </div>
       <span class="live-badge">LIVE</span>
     </div>
+    <div class="screen">
+      <canvas class="viz"></canvas>
+      <div class="yt-host"></div>
+    </div>
     <canvas class="wave" title="Click to jump to a spot in the song"></canvas>
     <div class="time"><span class="elapsed">0:00</span><span class="pitch-readout">±0.0%</span><span class="remain">-0:00</span></div>
     <div class="deck-body">
@@ -185,6 +218,7 @@
       <div class="queue-actions">
         <button class="add-files">+ Songs</button>
         <button class="add-folder">+ Folder</button>
+        <button class="add-yt" title="Add songs from YouTube or YouTube Music links">+ YouTube</button>
         <button class="save-pl" title="Save this deck's song and queue as a playlist">Save</button>
         <button class="shuffle" title="Shuffle this queue">Shuffle</button>
         <button class="clear" title="Remove every song from this queue">Clear</button>
@@ -196,6 +230,7 @@
     <div class="queue-empty"><span>Drop songs here, or use <b>+ Songs</b></span></div>
   </template>
 
+  <script src="youtube.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

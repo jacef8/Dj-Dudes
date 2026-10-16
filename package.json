@@ -22,7 +22,8 @@
       "remote.html",
       "index.html",
       "style.css",
-      "app.js"
+      "app.js",
+      "youtube.js"
     ],
     "win": {
       "target": [

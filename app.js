@@ -69,18 +69,32 @@ let nextTrackId = 1;
  * A song. It has a `file` (picked or dropped this session, or restored from a
  * browser-saved playlist) and/or a `path` on disk (desktop app only).
  */
-function makeTrack({ file = null, path = '', name = '', duration = NaN }) {
-  const fileName = file ? file.name : path.split(/[\\/]/).pop();
+function makeTrack({ file = null, path = '', youtubeId = '', name = '', duration = NaN }) {
+  const fileName = youtubeId ? 'YouTube' : file ? file.name : path.split(/[\\/]/).pop();
   const track = {
     id: nextTrackId++,
     file,
     path,
+    youtubeId,
     fileName,
     name: name || fileName.replace(/\.[^.]+$/, ''),
     duration,
     peaks: null,
   };
   if (file && !Number.isFinite(duration)) probeDuration(track);
+  return track;
+}
+
+/** A queue entry for a YouTube song; the real title is looked up in the background. */
+function makeYouTubeTrack(id, name = '') {
+  const track = makeTrack({ youtubeId: id, name: name || 'YouTube song' });
+  if (!name) {
+    fetchYouTubeTitle(id).then(title => {
+      track.name = title;
+      renderQueues();
+      for (const d of Object.values(decks)) if (d.track === track) d.ui.title.textContent = title;
+    }).catch(() => { /* keep the placeholder */ });
+  }
   return track;
 }
 
@@ -153,11 +167,16 @@ class Deck {
     this.ready = false;     // audio source attached
     this.playWhenReady = false;
 
-    // Audio chain
-    this.el = new Audio();
-    this.el.preload = 'auto';
-    this.el.preservesPitch = false; // pitch slider behaves like a turntable
-    const src = ctx.createMediaElementSource(this.el);
+    this.loop = false;
+    this.rate = 1;          // pitch slider
+    this.volume = 1;        // channel fader
+
+    // Audio chain (files). YouTube songs play in YouTube's own player instead.
+    this.audio = new Audio();
+    this.audio.preload = 'auto';
+    this.audio.preservesPitch = false; // pitch slider behaves like a turntable
+    this.el = this.audio;   // whichever is in use: this.audio or this.yt
+    const src = ctx.createMediaElementSource(this.audio);
     this.low = this.makeFilter('lowshelf', 250);
     this.mid = this.makeFilter('peaking', 1000);
     this.mid.Q.value = 0.8;
@@ -169,22 +188,58 @@ class Deck {
     this.meterBuf = new Float32Array(this.analyser.fftSize);
     src.connect(this.low).connect(this.mid).connect(this.high).connect(this.vol).connect(this.xf).connect(master);
     this.xf.connect(this.analyser);
-
-    this.el.addEventListener('play', () => this.renderState());
-    this.el.addEventListener('pause', () => this.renderState());
-    this.el.addEventListener('ended', () => {
-      this.renderState();
-      automixTick();
-    });
-    this.el.addEventListener('error', () => {
-      if (!this.track) return;
-      setStatus(`Deck ${this.id}: can't play "${this.track.name}" (unsupported file?) — skipping.`);
-      this.unload();
-      automixTick();
-    });
+    // Visualizer listens before the crossfader, so you can see a deck you can't hear yet.
+    this.vizAnalyser = ctx.createAnalyser();
+    this.vizAnalyser.fftSize = 512;
+    this.vizAnalyser.smoothingTimeConstant = 0.75;
+    this.vizBuf = new Uint8Array(this.vizAnalyser.frequencyBinCount);
+    this.vizBars = new Float32Array(48);
+    this.vol.connect(this.vizAnalyser);
 
     this.buildDeckUI($(`.deck[data-deck="${id}"]`));
     this.buildQueueUI($(`.queue[data-deck="${id}"]`));
+
+    this.yt = new YouTubeMedia($('.yt-host', this.root));
+    this.bindMedia(this.audio);
+    this.bindMedia(this.yt);
+  }
+
+  bindMedia(media) {
+    const active = () => media === this.el;
+    media.addEventListener('play', () => active() && this.renderState());
+    media.addEventListener('pause', () => active() && this.renderState());
+    media.addEventListener('ended', () => {
+      if (!active()) return;
+      this.renderState();
+      automixTick();
+    });
+    media.addEventListener('error', () => {
+      if (!active() || !this.track) return;
+      this.fail(media === this.yt ? this.yt.errorMessage : 'unsupported file?');
+    });
+  }
+
+  /** A song couldn't be played: skip it without ever cutting the music that's on. */
+  fail(why) {
+    setStatus(`Deck ${this.id}: can't play "${this.track ? this.track.name : 'that song'}" (${why}) — skipping.`);
+    this.unload();
+    // If we were fading over to this deck, swing straight back to the one still playing.
+    if (state.fade && state.fade.target === this.side && this.other.isPlaying) {
+      state.live = this.other.id;
+      fadeTo(this.other.side, 0.3);
+    }
+    automixTick();
+  }
+
+  get isYouTube() { return this.el === this.yt; }
+
+  /** Stop and clear both players. */
+  resetMedia() {
+    this.audio.pause();
+    this.audio.removeAttribute('src');
+    this.yt.stop();
+    this.el = this.audio;
+    this.root.classList.remove('is-yt');
   }
 
   makeFilter(type, freq) {
@@ -226,8 +281,7 @@ class Deck {
       if (state.repeatAll) this.queue.push(this.track);
       this.retire(this.track);
     }
-    this.el.pause();
-    this.el.removeAttribute('src');
+    this.resetMedia();
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = null;
     this.ready = false;
@@ -239,16 +293,23 @@ class Deck {
     this.renderState();
     renderQueues();
 
+    if (track.youtubeId) {
+      this.loadYouTube(track);
+      return;
+    }
+
     const attach = blob => {
       if (this.track !== track) return; // something else got loaded meanwhile
       this.url = URL.createObjectURL(blob);
-      this.el.src = this.url;
-      this.el.load();
+      this.audio.src = this.url;
+      this.audio.load();
+      this.audio.loop = this.loop;
+      this.audio.defaultPlaybackRate = this.audio.playbackRate = this.rate;
       this.ready = true;
-      this.el.addEventListener('loadedmetadata', () => {
+      this.audio.addEventListener('loadedmetadata', () => {
         if (this.track !== track) return;
-        track.duration = this.el.duration;
-        this.ui.sub.textContent = `${fmtTime(this.el.duration)} · ${track.fileName}`;
+        track.duration = this.audio.duration;
+        this.ui.sub.textContent = `${fmtTime(this.audio.duration)} · ${track.fileName}`;
       }, { once: true });
       if (this.playWhenReady) this.start();
       computePeaks(track, blob).then(() => this.resizeCanvas());
@@ -258,11 +319,38 @@ class Deck {
     } else {
       trackBlob(track).then(attach).catch(err => {
         if (this.track !== track) return;
-        setStatus(`Deck ${this.id}: couldn't open "${track.fileName}" (${err.message}) — skipping.`);
-        this.unload();
-        automixTick();
+        this.fail(`couldn't open the file: ${err.message}`);
       });
     }
+  }
+
+  loadYouTube(track) {
+    this.el = this.yt;
+    this.yt.loop = this.loop;
+    this.root.classList.add('is-yt');
+    this.ready = true; // the YouTube wrapper queues play() itself until the video is ready
+    this.yt.addEventListener('loadedmetadata', () => {
+      if (this.track !== track) return;
+      track.duration = this.yt.duration;
+      this.ui.sub.textContent = `${fmtTime(track.duration)} · YouTube`;
+      renderQueues();
+    }, { once: true });
+    if (!youtubeSupported) {
+      this.fail('YouTube songs only play in the desktop app');
+      return;
+    }
+    this.yt.load(track.youtubeId).then(() => {
+      if (this.track === track) this.ui.sub.textContent = 'YouTube';
+    }).catch(err => {
+      if (this.track === track) this.fail(err.message);
+    });
+  }
+
+  /** YouTube songs bypass the mixer, so mirror the deck's volume onto the player. */
+  syncYouTubeVolume() {
+    if (!this.isYouTube) return;
+    const x = state.fade ? currentFadePos()[0] : state.xfade;
+    this.yt.setVolume(curveGains(x)[this.side] * this.volume * +$('#master').value);
   }
 
   /** Start playback now, or as soon as the song finishes loading from disk. */
@@ -283,9 +371,8 @@ class Deck {
     if (requeue) this.retire(this.track);
     this.ready = false;
     this.playWhenReady = false;
-    this.el.pause();
-    this.el.removeAttribute('src');
-    this.el.load();
+    this.resetMedia();
+    this.audio.load();
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = null;
     this.track = null;
@@ -377,6 +464,7 @@ class Deck {
       title: $('.title', root),
       sub: $('.sub', root),
       wave: $('.wave', root),
+      viz: $('.viz', root),
       elapsed: $('.elapsed', root),
       remain: $('.remain', root),
       pitchOut: $('.pitch-readout', root),
@@ -389,9 +477,10 @@ class Deck {
     $('.cue', root).addEventListener('click', () => this.cue());
     const loopBtn = $('.loop', root);
     loopBtn.addEventListener('click', () => {
-      this.el.loop = !this.el.loop;
-      loopBtn.setAttribute('aria-pressed', String(this.el.loop));
-      setStatus(this.el.loop
+      this.loop = !this.loop;
+      this.audio.loop = this.yt.loop = this.loop;
+      loopBtn.setAttribute('aria-pressed', String(this.loop));
+      setStatus(this.loop
         ? `Deck ${this.id} will repeat this song until you turn REPEAT off or press FADE NOW.`
         : `Deck ${this.id} repeat off.`);
     });
@@ -412,9 +501,13 @@ class Deck {
     bindSlider('.eq-high', v => this.high.gain.setTargetAtTime(v, ctx.currentTime, 0.02));
     bindSlider('.eq-mid', v => this.mid.gain.setTargetAtTime(v, ctx.currentTime, 0.02));
     bindSlider('.eq-low', v => this.low.gain.setTargetAtTime(v, ctx.currentTime, 0.02));
-    bindSlider('.volume', v => this.vol.gain.setTargetAtTime(v, ctx.currentTime, 0.02));
+    bindSlider('.volume', v => {
+      this.volume = v;
+      this.vol.gain.setTargetAtTime(v, ctx.currentTime, 0.02);
+    });
     bindSlider('.pitch', v => {
-      this.el.playbackRate = 1 + v / 100;
+      this.rate = 1 + v / 100;
+      this.audio.defaultPlaybackRate = this.audio.playbackRate = this.rate;
       this.ui.pitchOut.textContent = `${v > 0 ? '+' : v < 0 ? '' : '±'}${v.toFixed(1)}%`;
     });
 
@@ -426,13 +519,72 @@ class Deck {
       this.el.currentTime = clamp((e.clientX - rect.left) / rect.width, 0, 1) * d;
     });
     new ResizeObserver(() => this.resizeCanvas()).observe(canvas);
+    new ResizeObserver(() => this.resizeCanvas()).observe(this.ui.viz);
+    this.color = getComputedStyle(root).getPropertyValue('--c').trim();
   }
 
   resizeCanvas() {
-    const c = this.ui.wave;
     const dpr = window.devicePixelRatio || 1;
-    c.width = Math.round(c.clientWidth * dpr);
-    c.height = Math.round(c.clientHeight * dpr);
+    for (const c of [this.ui.wave, this.ui.viz]) {
+      c.width = Math.round(c.clientWidth * dpr);
+      c.height = Math.round(c.clientHeight * dpr);
+    }
+  }
+
+  /** Spectrum bars for file songs (YouTube songs show their video here instead). */
+  drawVisualizer() {
+    const c = this.ui.viz;
+    const w = c.width, h = c.height;
+    if (!w || !h || this.isYouTube || !c.offsetParent) return;
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, w, h);
+
+    this.vizAnalyser.getByteFrequencyData(this.vizBuf);
+    const bins = this.vizBuf;
+    const n = this.vizBars.length;
+    const playing = this.isPlaying;
+    let bass = 0;
+    for (let i = 0; i < n; i++) {
+      // Log-spaced bands from ~100 Hz to ~16 kHz.
+      const lo = Math.floor(2 * Math.pow(90, i / n));
+      const hi = Math.max(lo + 1, Math.floor(2 * Math.pow(90, (i + 1) / n)));
+      let v = 0;
+      for (let b = lo; b < hi && b < bins.length; b++) v = Math.max(v, bins[b]);
+      v = playing ? v / 255 : 0;
+      // Rise fast, fall slowly.
+      this.vizBars[i] = v > this.vizBars[i] ? v : this.vizBars[i] * 0.92;
+      if (i < 4) bass += this.vizBars[i] / 4;
+    }
+
+    // Background glow that pulses with the bass.
+    const glow = g.createRadialGradient(w / 2, h, 0, w / 2, h, h * 1.4);
+    glow.addColorStop(0, this.color + Math.round(20 + bass * 70).toString(16).padStart(2, '0'));
+    glow.addColorStop(1, 'transparent');
+    g.fillStyle = glow;
+    g.fillRect(0, 0, w, h);
+
+    const gap = Math.max(2, w / n * 0.25);
+    const barW = w / n - gap;
+    const floor = h * 0.78;
+    const grad = g.createLinearGradient(0, floor, 0, 0);
+    grad.addColorStop(0, this.color);
+    grad.addColorStop(1, '#ffffff');
+    for (let i = 0; i < n; i++) {
+      const x = i * (barW + gap) + gap / 2;
+      const bh = Math.max(2, this.vizBars[i] * floor * 0.95);
+      g.fillStyle = grad;
+      g.fillRect(x, floor - bh, barW, bh);
+      // Reflection
+      g.fillStyle = this.color + '33';
+      g.fillRect(x, floor + 2, barW, bh * 0.25);
+    }
+
+    if (!this.track) {
+      g.fillStyle = '#5a6070';
+      g.font = `${Math.round(13 * (window.devicePixelRatio || 1))}px "Segoe UI", system-ui, sans-serif`;
+      g.textAlign = 'center';
+      g.fillText('No song loaded', w / 2, h * 0.45);
+    }
   }
 
   renderState() {
@@ -455,6 +607,8 @@ class Deck {
     this.meterLevel = Math.max(peak, this.meterLevel * 0.9);
     ui.meter.style.height = `${Math.min(100, this.meterLevel * 100)}%`;
 
+    this.drawVisualizer();
+
     // Waveform
     const c = ui.wave;
     const g = c.getContext('2d');
@@ -463,7 +617,7 @@ class Deck {
     if (!this.track || !w) return;
     const progress = Number.isFinite(d) && d > 0 ? t / d : 0;
     const playX = progress * w;
-    const color = getComputedStyle(this.root).getPropertyValue('--c').trim();
+    const color = this.color;
     const peaks = this.track.peaks;
     if (peaks) {
       const mid = h / 2;
@@ -498,6 +652,7 @@ class Deck {
     const folderInput = $('.folder-input', root);
     $('.add-files', root).addEventListener('click', () => fileInput.click());
     $('.add-folder', root).addEventListener('click', () => folderInput.click());
+    $('.add-yt', root).addEventListener('click', () => showYouTubeDialog());
     const onPick = input => () => {
       const files = [...input.files].sort((a, b) =>
         (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, { numeric: true }));
@@ -556,6 +711,12 @@ class Deck {
         renderQueues();
         return;
       }
+      // A link dragged from the browser's address bar or a YouTube page.
+      if (!e.dataTransfer.files.length) {
+        const text = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+        if (text) addYouTubeLinks(text, this, index);
+        return;
+      }
       const files = await filesFromDrop(e.dataTransfer);
       this.addFiles(files, index);
     });
@@ -585,10 +746,10 @@ class Deck {
 
     this.queue.forEach((track, i) => {
       const li = document.createElement('li');
-      li.className = 'q-item' + (i === 0 ? ' up-next' : '');
+      li.className = 'q-item' + (i === 0 ? ' up-next' : '') + (track.youtubeId ? ' is-yt' : '');
       li.draggable = true;
       li.dataset.id = track.id;
-      li.title = `${track.path || track.fileName}\nDouble-click to load on deck ${this.id}`;
+      li.title = `${track.youtubeId ? youtubeUrl(track.youtubeId) : track.path || track.fileName}\nDouble-click to load on deck ${this.id}`;
       li.innerHTML = `
         <span class="q-num"></span>
         <span class="q-name"></span>
@@ -917,13 +1078,21 @@ const desktopStore = {
     const items = await window.native.readPlaylist(name);
     const found = items.filter(i => i.exists);
     return {
-      tracks: found.map(i => makeTrack({ path: i.path, name: i.title, duration: i.duration })),
+      tracks: found.map(i => {
+        const yt = /^https?:/i.test(i.path) && parseYouTubeLink(i.path);
+        if (yt && yt.id) return makeYouTubeTrack(yt.id, i.title);
+        return makeTrack({ path: i.path, name: i.title, duration: i.duration });
+      }),
       missing: items.length - found.length,
     };
   },
   async save(name, tracks) {
-    const usable = tracks.filter(t => t.path);
-    await window.native.savePlaylist(name, usable.map(t => ({ path: t.path, title: t.name, duration: t.duration })));
+    const usable = tracks.filter(t => t.path || t.youtubeId);
+    await window.native.savePlaylist(name, usable.map(t => ({
+      path: t.youtubeId ? youtubeUrl(t.youtubeId) : t.path,
+      title: t.name,
+      duration: t.duration,
+    })));
     return tracks.length - usable.length;
   },
   remove: name => window.native.deletePlaylist(name),
@@ -963,17 +1132,21 @@ const browserStore = {
   async load(name) {
     const p = await this.run('readonly', s => s.get(name));
     return {
-      tracks: p.tracks.map(t => makeTrack({ file: t.file, name: t.name, duration: t.duration })),
+      tracks: p.tracks.map(t => (t.youtubeId
+        ? makeYouTubeTrack(t.youtubeId, t.name)
+        : makeTrack({ file: t.file, name: t.name, duration: t.duration }))),
       missing: 0,
     };
   },
   async save(name, tracks) {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
-    const usable = tracks.filter(t => t.file);
+    const usable = tracks.filter(t => t.file || t.youtubeId);
     await this.run('readwrite', s => s.put({
       name,
       savedAt: Date.now(),
-      tracks: usable.map(t => ({ name: t.name, duration: t.duration, file: t.file })),
+      tracks: usable.map(t => (t.youtubeId
+        ? { name: t.name, duration: t.duration, youtubeId: t.youtubeId }
+        : { name: t.name, duration: t.duration, file: t.file })),
     }));
     return tracks.length - usable.length;
   },
@@ -1194,6 +1367,114 @@ if (remoteApi) {
   refreshRemote();
   setInterval(refreshRemote, 3000); // keeps the "phones connected" count fresh
 }
+
+/* ---------- adding YouTube songs ---------- */
+
+const ytDialog = $('#yt-dialog');
+const ytLinks = $('#yt-links');
+const ytProgress = $('#yt-progress');
+const ytPreview = $('#yt-preview');
+
+/**
+ * Add every YouTube / YouTube Music link found in `text` to a deck's queue.
+ * Playlist and album links are expanded into their songs.
+ */
+async function addYouTubeLinks(text, deck, index = deck.queue.length) {
+  if (!youtubeSupported) {
+    setStatus('YouTube songs only play in the desktop app — start DJ Dudes with "Start DJ Dudes.bat".');
+    return 0;
+  }
+  const links = String(text).split(/\s+/).map(parseYouTubeLink).filter(Boolean);
+  if (!links.length) {
+    setStatus("That doesn't look like a YouTube or YouTube Music link.");
+    return 0;
+  }
+  const tracks = [];
+  let failed = 0;
+  const openedHere = !ytDialog.open;
+  for (const link of links) {
+    if (link.id) {
+      tracks.push(makeYouTubeTrack(link.id));
+      continue;
+    }
+    // Playlist: YouTube's player lists its songs for us (it has to be on screen).
+    setStatus('Reading the YouTube playlist…');
+    ytProgress.textContent = 'Reading the playlist…';
+    ytPreview.hidden = false;
+    if (!ytDialog.open) ytDialog.showModal();
+    try {
+      const ids = await expandYouTubePlaylist(link.list, ytPreview);
+      tracks.push(...ids.map(id => makeYouTubeTrack(id)));
+    } catch (err) {
+      failed++;
+      setStatus(`Couldn't read that playlist: ${err.message}`);
+    } finally {
+      ytPreview.hidden = true;
+      ytProgress.textContent = '';
+    }
+  }
+  if (openedHere && ytDialog.open) ytDialog.close();
+  if (!tracks.length) return 0;
+  deck.queue.splice(Math.min(index, deck.queue.length), 0, ...tracks);
+  if (!deck.track && !deck.isPlaying) deck.loadNext();
+  renderQueues();
+  let msg = `Added ${tracks.length} YouTube song${tracks.length > 1 ? 's' : ''} to Queue ${deck.id}.`;
+  if (failed) msg += ` ${failed} playlist${failed > 1 ? 's' : ''} couldn't be read.`;
+  setStatus(msg);
+  return tracks.length;
+}
+
+function showYouTubeDialog(prefill = '') {
+  $('#yt-unsupported').hidden = youtubeSupported;
+  $('#yt-form').hidden = !youtubeSupported;
+  ytLinks.value = prefill;
+  ytProgress.textContent = '';
+  ytPreview.hidden = true;
+  ytDialog.showModal();
+  ytLinks.focus();
+}
+
+$('#yt-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const deck = decks[e.submitter && e.submitter.value === 'B' ? 'B' : 'A'];
+  const buttons = [...e.target.querySelectorAll('button')];
+  buttons.forEach(b => { b.disabled = true; });
+  const added = await addYouTubeLinks(ytLinks.value, deck);
+  buttons.forEach(b => { b.disabled = false; });
+  if (added) {
+    ytLinks.value = '';
+    ytDialog.close();
+  } else {
+    ytProgress.textContent = $('#status').textContent;
+  }
+});
+
+
+// Ctrl+V with a YouTube link copied: open the add window with it filled in.
+document.addEventListener('paste', e => {
+  if (e.target.matches('input, textarea') || document.querySelector('dialog[open]')) return;
+  const text = e.clipboardData.getData('text');
+  if (text && parseYouTubeLink(text.trim().split(/\s+/)[0])) {
+    e.preventDefault();
+    showYouTubeDialog(text.trim());
+  }
+});
+
+// YouTube songs bypass the mixer: keep their player volume following the faders.
+setInterval(() => {
+  decks.A.syncYouTubeVolume();
+  decks.B.syncYouTubeVolume();
+}, 50);
+
+/* ---------- screens (visualizer / YouTube video) ---------- */
+
+function setScreens(on) {
+  document.body.classList.toggle('no-screens', !on);
+  $('#screens-btn').setAttribute('aria-pressed', String(on));
+  try { localStorage.setItem('dj-screens', on ? '1' : '0'); } catch { /* not important */ }
+}
+$('#screens-btn').addEventListener('click', () => setScreens(document.body.classList.contains('no-screens')));
+try { setScreens(localStorage.getItem('dj-screens') !== '0'); } catch { setScreens(true); }
 
 /* ---------- keyboard ---------- */
 

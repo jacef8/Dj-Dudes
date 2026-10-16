@@ -37,6 +37,19 @@ npm run dist
    - With **Repeat queues** ticked, songs that finish go back to the end of their queue, so the set loops forever.
    - If **Share queues** is ticked and one side runs out, the deck takes its next song from the other side's queue. That means you can put a whole playlist in Queue A and the decks will still alternate.
 
+### YouTube & YouTube Music songs (desktop app)
+Click **+ YouTube** on a queue and paste links: songs, playlists or albums, one per line. In YouTube Music, use **⋮ → Share → Copy link**. You can also drag a link onto a queue, or just press **Ctrl+V** anywhere in DJ Dudes with a link copied.
+
+- A deck playing a YouTube song shows the **video in its screen**. Fades, FADE NOW, automix, BACK/NEXT, REPEAT, playlists and the phone remote all work. Crossfades are done by turning YouTube's player volume up and down.
+- **Needs the internet** while it plays, and may show **ads** (YouTube's rules).
+- **Some songs can't be played outside YouTube** (the record label blocks it). DJ Dudes skips those automatically, and if it was fading into one, it swings straight back so the music never stops.
+- **EQ and pitch don't work on YouTube songs**, because YouTube doesn't let other apps change its sound. They're greyed out.
+- Private or automatic playlists (like *Liked Music*) can't be read. Make a normal playlist in YouTube Music and share that.
+- Only works in the desktop app, not when `index.html` is opened directly.
+
+### Visualizer screens
+Each deck has a screen above its waveform: animated bars that move with the music, or the video for a YouTube song. The bars show a deck even before you fade it in, so you can see the next song is ready. **📺 Screens** (top right) hides them to give the queues more room. A deck playing YouTube always keeps its video visible, because YouTube requires it.
+
 ### Playlists
 Click **📁 Playlists** (top right) or **Save** on a queue.
 - **Save Queue A / B** saves the song on that deck plus everything in its queue, in order.
@@ -70,7 +83,7 @@ The link contains a secret key, so other people on the Wi-Fi can't take over. **
 | HI / MID / LOW | 3-band EQ (pull LOW down to kill the bass during a transition) |
 | PITCH | ±8% speed |
 | VOL | Deck volume (channel fader) |
-| Waveform | Click to jump to that spot in the song |
+| Waveform | The strip under the screen. Click to jump to that spot in the song |
 
 Double-click any slider to reset it.
 
