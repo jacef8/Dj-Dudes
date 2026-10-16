@@ -23,8 +23,11 @@
       "index.html",
       "style.css",
       "app.js",
-      "youtube.js"
+      "youtube.js",
+      "icon.png",
+      "icon.ico"
     ],
+    "icon": "icon.ico",
     "win": {
       "target": [
         "nsis",

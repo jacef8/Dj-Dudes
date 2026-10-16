@@ -14,8 +14,8 @@ if errorlevel 1 (
   exit /b
 )
 
-if not exist "node_modules\electron\dist\electron.exe" goto install
 if not exist "node_modules\qrcode-generator" goto install
+if not exist "node_modules\electron\dist\electron.exe" goto install
 goto run
 
 :install
@@ -23,21 +23,19 @@ echo.
 echo  First-time setup: downloading what DJ Dudes needs (needs internet, takes a minute or two)...
 echo.
 call npm install
-if errorlevel 1 (
-  echo.
-  echo  Setup failed. Check your internet connection and try again.
-  pause
-  exit /b
-)
+if errorlevel 1 goto failed
+if not exist "node_modules\electron\dist\electron.exe" call node node_modules\electron\install.js
+if not exist "node_modules\electron\dist\electron.exe" goto failed
 
 :run
-rem Once Electron is fully downloaded, start the app on its own so this window can close.
-if exist "node_modules\electron\dist\electron.exe" (
-  start "" "node_modules\electron\dist\electron.exe" .
-  exit /b
-)
+rem Open DJ Dudes on its own so this window can close,
+start "" "node_modules\electron\dist\electron.exe" "%~dp0."
+rem then put a DJ Dudes icon on the Desktop and in the Start menu (refreshed every time).
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0make-shortcut.ps1" >nul 2>nul
+exit /b
+
+:failed
 echo.
-echo  Finishing setup. Leave this window open while you use DJ Dudes this time.
-echo  From now on it will close by itself.
-echo.
-call npm start
+echo  Setup failed. Check your internet connection and try again.
+pause
+exit /b

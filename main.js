@@ -49,6 +49,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640,
     title: 'DJ Dudes',
+    icon: path.join(__dirname, 'icon.png'),
     backgroundColor: '#0e0f13',
     autoHideMenuBar: true,
     webPreferences: {
@@ -166,6 +167,9 @@ ipcMain.handle('remote-reset', async () => {
 
 // Look like plain Chrome to websites (YouTube is pickier with unknown browsers).
 app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|dj-dudes|DJ Dudes)\/\S+/gi, '');
+
+// Show as "DJ Dudes" (with its own icon) in the Windows taskbar.
+if (process.platform === 'win32') app.setAppUserModelId('com.djdudes.app');
 
 app.whenReady().then(async () => {
   appPort = await startAppServer();
