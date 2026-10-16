@@ -221,8 +221,16 @@ class Deck {
 
   /** A song couldn't be played: skip it without ever cutting the music that's on. */
   fail(why) {
-    setStatus(`Deck ${this.id}: can't play "${this.track ? this.track.name : 'that song'}" (${why}) — skipping.`);
+    const track = this.track;
+    setStatus(`Deck ${this.id}: can't play "${track ? track.name : 'that song'}" (${why}) — skipping.`);
     this.unload();
+    // Keep it in the queue, marked, so it doesn't just vanish.
+    if (track) {
+      track.error = why;
+      this.queue.push(track);
+      renderQueues();
+    }
+    if (!this.track) this.loadNext(); // line up the next song instead of sitting empty
     // If we were fading over to this deck, swing straight back to the one still playing.
     if (state.fade && state.fade.target === this.side && this.other.isPlaying) {
       state.live = this.other.id;
@@ -276,6 +284,7 @@ class Deck {
   }
 
   load(track, { back = false } = {}) {
+    track.error = null; // loading by hand retries a song that failed before
     if (!back && this.track && this.track !== track) {
       // With "repeat queues" on, the song being replaced goes to the back of the line.
       if (state.repeatAll) this.queue.push(this.track);
@@ -383,8 +392,13 @@ class Deck {
 
   /** Load the next song from this deck's queue (or the other one if sharing). */
   loadNext() {
-    let track = this.queue.shift();
-    if (!track && state.share) track = this.other.queue.shift();
+    // Songs that already failed stay in the queue (marked ⚠) but are skipped.
+    const take = q => {
+      const i = q.findIndex(t => !t.error);
+      return i < 0 ? undefined : q.splice(i, 1)[0];
+    };
+    let track = take(this.queue);
+    if (!track && state.share) track = take(this.other.queue);
     // Repeat with only one song left: play it again.
     if (!track && state.repeatAll && this.track && this.el.ended) track = this.track;
     if (!track) return false;
@@ -740,19 +754,23 @@ class Deck {
     list.textContent = '';
     this.qroot.classList.toggle('has-items', this.queue.length > 0);
     const total = this.queue.reduce((s, t) => s + (Number.isFinite(t.duration) ? t.duration : 0), 0);
+    const failed = this.queue.filter(t => t.error).length;
     $('.q-count', this.qroot).textContent = this.queue.length
-      ? `${this.queue.length} song${this.queue.length > 1 ? 's' : ''} · ${fmtTime(total)}`
+      ? `${this.queue.length} song${this.queue.length > 1 ? 's' : ''} · ${fmtTime(total)}` +
+        (failed ? ` · ⚠ ${failed} can't play` : '')
       : '';
 
     this.queue.forEach((track, i) => {
       const li = document.createElement('li');
-      li.className = 'q-item' + (i === 0 ? ' up-next' : '') + (track.youtubeId ? ' is-yt' : '');
+      li.className = 'q-item' + (i === 0 ? ' up-next' : '') + (track.youtubeId ? ' is-yt' : '') +
+        (track.error ? ' has-error' : '');
       li.draggable = true;
       li.dataset.id = track.id;
-      li.title = `${track.youtubeId ? youtubeUrl(track.youtubeId) : track.path || track.fileName}\nDouble-click to load on deck ${this.id}`;
+      li.title = `${track.youtubeId ? youtubeUrl(track.youtubeId) : track.path || track.fileName}\n` +
+        (track.error ? `Can't play: ${track.error}. Double-click to try again.` : `Double-click to load on deck ${this.id}`);
       li.innerHTML = `
         <span class="q-num"></span>
-        <span class="q-name"></span>
+        <span class="q-main"><span class="q-name"></span><span class="q-err"></span></span>
         <span class="q-dur"></span>
         <span class="q-btns">
           <button class="load" title="Load on deck ${this.id} now">Load</button>
@@ -761,6 +779,7 @@ class Deck {
         </span>`;
       $('.q-num', li).textContent = i + 1;
       $('.q-name', li).textContent = track.name;
+      $('.q-err', li).textContent = track.error ? `⚠ Can't play: ${track.error}` : '';
       $('.q-dur', li).textContent = fmtTime(track.duration);
 
       const loadNow = () => {
@@ -1416,9 +1435,11 @@ async function addYouTubeLinks(text, deck, index = deck.queue.length) {
   if (openedHere && ytDialog.open) ytDialog.close();
   if (!tracks.length) return 0;
   deck.queue.splice(Math.min(index, deck.queue.length), 0, ...tracks);
-  if (!deck.track && !deck.isPlaying) deck.loadNext();
+  let onDeck = false;
+  if (!deck.track && !deck.isPlaying) onDeck = deck.loadNext() && tracks.includes(deck.track);
   renderQueues();
   let msg = `Added ${tracks.length} YouTube song${tracks.length > 1 ? 's' : ''} to Queue ${deck.id}.`;
+  if (onDeck) msg += ` The first one is loaded on deck ${deck.id}.`;
   if (failed) msg += ` ${failed} playlist${failed > 1 ? 's' : ''} couldn't be read.`;
   setStatus(msg);
   return tracks.length;

@@ -172,7 +172,11 @@ input[type="range"].v { writing-mode: vertical-lr; direction: rtl; height: 96px;
 .q-item.drop-before { box-shadow: inset 0 2px 0 var(--c); }
 .q-item.up-next .q-num { background: var(--c); color: #000; }
 .q-num { width: 24px; height: 24px; flex: none; border-radius: 4px; background: var(--panel-2); display: grid; place-items: center; font-size: 11px; color: var(--muted); font-weight: 700; }
-.q-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.q-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-err { color: var(--danger); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-err:empty { display: none; }
+.q-item.has-error .q-name, .q-item.has-error .q-dur { opacity: .5; }
 .q-dur { color: var(--muted); font-variant-numeric: tabular-nums; }
 .q-btns { display: flex; gap: 2px; opacity: 0; }
 .q-item:hover .q-btns { opacity: 1; }

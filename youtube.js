@@ -105,6 +105,7 @@ const YT_ERRORS = {
   100: 'the video was removed or is private',
   101: "the owner doesn't allow it to play outside YouTube",
   150: "the owner doesn't allow it to play outside YouTube",
+  152: "the owner doesn't allow it to play outside YouTube",
   153: 'YouTube rejected the player (start DJ Dudes with "Start DJ Dudes.bat")',
 };
 
