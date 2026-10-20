@@ -78,7 +78,29 @@ function createWindow() {
 
 /* ---------- playlists: .m3u8 files in Documents/DJ Dudes/Playlists ---------- */
 
-const playlistDir = () => path.join(app.getPath('documents'), 'DJ Dudes', 'Playlists');
+/*
+ * Portable version (DJ Dudes.exe kept in Google Drive): playlists and settings
+ * live in a "DJ Dudes Data" folder next to the .exe, so they follow it to any PC.
+ * Otherwise they live in Documents\DJ Dudes.
+ */
+const portableDir = process.env.PORTABLE_EXECUTABLE_DIR || '';
+const dataDir = () => (portableDir
+  ? path.join(portableDir, 'DJ Dudes Data')
+  : path.join(app.getPath('documents'), 'DJ Dudes'));
+const playlistDir = () => path.join(dataDir(), 'Playlists');
+
+/** First run of the portable version: bring over playlists saved by the old setup. */
+async function adoptOldPlaylists() {
+  if (!portableDir) return;
+  const oldDir = path.join(app.getPath('documents'), 'DJ Dudes', 'Playlists');
+  try {
+    await fs.mkdir(playlistDir(), { recursive: true });
+    if ((await fs.readdir(playlistDir())).length) return;
+    for (const f of await fs.readdir(oldDir)) {
+      if (/\.m3u8?$/i.test(f)) await fs.copyFile(path.join(oldDir, f), path.join(playlistDir(), f));
+    }
+  } catch { /* nothing to bring over */ }
+}
 
 const safeName = name =>
   String(name).replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/[. ]+$/, '').trim().slice(0, 100) || 'Untitled';
@@ -186,9 +208,10 @@ app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|dj-dudes|DJ Du
 if (process.platform === 'win32') app.setAppUserModelId('com.djdudes.app');
 
 app.whenReady().then(async () => {
+  await adoptOldPlaylists();
   appPort = await startAppServer();
   remote = new RemoteServer({
-    settingsFile: path.join(app.getPath('userData'), 'remote.json'),
+    settingsFile: portableDir ? path.join(dataDir(), 'remote.json') : path.join(app.getPath('userData'), 'remote.json'),
     onCommand: cmd => mainWindow && mainWindow.webContents.send('remote-cmd', cmd),
   });
   if (remote.settings.enabled) {

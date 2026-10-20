@@ -4,6 +4,14 @@ Two-deck DJ software for your PC. You queue up songs on **side A** and **side B*
 
 ## Run it
 
+### Portable: one file in Google Drive (recommended)
+Put **`DJ Dudes.exe`** in your Google Drive (or on a USB stick) and double-click it on any Windows PC. There's nothing to install and no Node.js needed. It takes a few seconds to open, because it unpacks itself each time.
+
+- Playlists and phone-remote settings are saved in a **`DJ Dudes Data`** folder next to the .exe, so they follow it to every PC. The first time it runs, it copies over any playlists saved by the older setup (`Documents\DJ Dudes\Playlists`).
+- Playlists point at your songs by their location. Songs stored in Google Drive work on every PC with the same Drive letter.
+- Windows may say "Windows protected your PC" because the file isn't signed. Click **More info → Run anyway**.
+- To build a new `DJ Dudes.exe` from this code: `npm install`, then `npm run dist` (output goes to `dist/`).
+
 ### Option 1: just open it (no install)
 Double-click `index.html` to open it in **Chrome** or **Edge**.
 
