@@ -12,6 +12,8 @@ Double-click `index.html` to open it in **Chrome** or **Edge**.
 
 If you move the DJ-Dudes folder, the icon will stop working. Run `Start DJ Dudes.bat` once from the new place to fix it.
 
+**Google Drive / OneDrive:** DJ Dudes doesn't run from inside a synced folder, because setup creates thousands of files the sync app would try to upload. If you double-click `Start DJ Dudes.bat` from Google Drive or OneDrive, it copies the app to `C:\Users\<you>\Projects\DJ-Dudes`, sets it up there, and points the icons at that copy. The synced copy stays as a backup. Running the launcher from the synced copy again later updates the PC copy from it.
+
 **Or by hand:** install [Node.js](https://nodejs.org) (LTS), then in this folder:
 
 ```
