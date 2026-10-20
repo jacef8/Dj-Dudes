@@ -23,7 +23,7 @@ npm start
 
 This opens DJ Dudes in its own window. Automix keeps working when the window is minimised.
 
-To build a Windows installer and a portable `.exe` (output goes to `dist/`):
+To build a Windows installer and a portable `.exe` (output goes to `dist/`; the first run downloads the build tools):
 
 ```
 npm run dist

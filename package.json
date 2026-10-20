@@ -6,11 +6,10 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "npx --yes electron-builder@26 --win"
   },
   "devDependencies": {
-    "electron": "^44.7.2",
-    "electron-builder": "^26.15.3"
+    "electron": "^44.7.2"
   },
   "build": {
     "appId": "com.djdudes.app",

@@ -29,9 +29,13 @@ goto run
 echo.
 echo  First-time setup: downloading what DJ Dudes needs (needs internet, takes a minute or two)...
 echo.
-call npm install
+rem --loglevel=http prints each download, so you can see it is working.
+call npm install --no-audit --no-fund --loglevel=http
 if errorlevel 1 goto failed
-if not exist "node_modules\electron\dist\electron.exe" call node node_modules\electron\install.js
+if exist "node_modules\electron\dist\electron.exe" goto run
+echo.
+echo  Downloading the app engine (about 100 MB, no progress shown, usually under 2 minutes)...
+call node node_modules\electron\install.js
 if not exist "node_modules\electron\dist\electron.exe" goto failed
 
 :run
