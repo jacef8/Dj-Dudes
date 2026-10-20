@@ -56,9 +56,14 @@ echo  This copy of DJ Dudes is inside Google Drive or OneDrive, so it will run
 echo  from a normal folder on this PC instead:
 echo    %DEST%
 echo  Copying the app there now. Your songs and playlists are not affected.
+echo  (If Google Drive still has to download some files, this can take a minute.)
 echo.
-robocopy "%HERE%." "%DEST%" /E /XD node_modules .git /NFL /NDL /NJH /NJS /NP >nul
+rem /R:2 /W:2 = give up on an unreadable file after 2 quick retries (the default
+rem retries a million times, which looks like the copy is stuck). File names are
+rem shown so you can see it working while Google Drive downloads them.
+robocopy "%HERE%." "%DEST%" /E /XD node_modules .git /R:2 /W:2 /NDL /NJH /NJS /NP
 if errorlevel 8 goto copyfailed
+if not exist "%DEST%\package.json" goto copyfailed
 echo  Done. From now on, open DJ Dudes with the icon on your Desktop.
 echo  This Google Drive copy is just a backup now.
 if exist "%HERE%node_modules" echo  You can delete the "node_modules" folder in the Google Drive copy to save space.
@@ -67,7 +72,10 @@ call "%DEST%\Start DJ Dudes.bat"
 exit /b
 
 :copyfailed
-echo  Copying failed. Copy this folder to %DEST% yourself,
+echo.
+echo  Some files could not be copied (Google Drive may still be downloading them).
+echo  Wait for Google Drive to finish syncing and try again, or copy this folder
+echo  to %DEST% yourself,
 echo  then double-click Start DJ Dudes.bat in that folder.
 pause
 exit /b
