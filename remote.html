@@ -72,6 +72,7 @@
 
     .row { display: grid; grid-template-columns: 1fr; gap: 8px; }
     .automix.on { border-color: var(--live); color: var(--live); }
+    .fade-out-btn.on { border-color: #ffd34d; color: #ffd34d; }
     .vol { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); margin-top: 12px; }
     .vol input { flex: 1; accent-color: var(--live); height: 30px; }
     .vol output { width: 38px; text-align: right; color: var(--text); }
@@ -97,6 +98,7 @@
     <button class="fade-now" id="fade-now">FADE NOW</button>
     <div class="row">
       <button class="automix" id="automix">AUTOMIX OFF</button>
+      <button class="fade-out-btn" id="fade-out">🔉 FADE OUT</button>
     </div>
     <label class="vol">MASTER
       <input type="range" id="master" min="0" max="1.5" step="0.01" value="1">
@@ -180,6 +182,7 @@
 
     $('#fade-now').addEventListener('click', () => send('fadeNow'));
     $('#automix').addEventListener('click', () => send('automix'));
+    $('#fade-out').addEventListener('click', () => send('fadeOut'));
     const masterIn = $('#master');
     masterIn.addEventListener('input', () => {
       masterDragging = true;
@@ -225,6 +228,9 @@
       const am = $('#automix');
       am.textContent = st.automix ? `AUTOMIX ON · fades ${st.startBefore}s before end` : 'AUTOMIX OFF';
       am.classList.toggle('on', st.automix);
+      const fo = $('#fade-out');
+      fo.textContent = st.fadingOut ? '🔉 FADING OUT…' : st.fadedOut ? '🔊 FADE IN' : '🔉 FADE OUT';
+      fo.classList.toggle('on', st.fadingOut || st.fadedOut);
       $('#status').textContent = st.status;
       if (!masterDragging && document.activeElement !== masterIn) {
         masterIn.value = st.master;

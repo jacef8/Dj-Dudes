@@ -43,6 +43,7 @@ npm run dist
 2. **Add songs.** Click **+ Songs** or **+ Folder** on Queue A or Queue B, or drag files or folders from Explorer straight onto a queue. MP3, WAV, FLAC, OGG, M4A/AAC and Opus all work. You can also drop a playlist file (`.m3u` / `.m3u8`, from DJ Dudes or other music apps) onto any queue to add everything in it. Drop songs **straight onto a deck** to load them there now: the first one loads (DJ Dudes asks first if that deck is playing out loud), any others go to the front of that deck's queue, and **BACK** brings back the song that was replaced.
 3. **Arrange the queues.** Drag songs to reorder them, or drag them across to the other queue. On each song, **⇄** moves it to the other side, **✕** removes it, and **Load** (or a double-click) puts it on the deck right away.
 4. **Fade when you choose.** Press ▶ on a deck. When you're ready for the other side, hit the big **FADE NOW** button (or `Space`). It starts the other deck and glides the crossfader over for you, taking **Fade duration** seconds. **Fade to A** / **Fade to B** do the same toward a particular side. You can also drag the crossfader yourself.
+   - **FADE OUT** (or `F`) fades the whole mix down to silence over the fade duration and stops, without starting the next song (handy for announcements or the end of the night). Press it again (**FADE IN**) to bring the same song back up, or press ▶ on a deck to carry on at normal volume. Also on the phone remote.
 5. **Or let it mix.** Turn on **AUTOMIX**. It plays A, then fades into B, then into the next song on A, and so on.
    - **Automix starts** sets how many seconds before the end of each song the fade begins (1–60s).
    - **Fade duration** sets how long the fade takes (1–30s). If the fade starts closer to the end than the fade duration, the fade is shortened so it finishes when the song does.
@@ -126,6 +127,7 @@ Double-click any slider to reset it.
 | `Space` | FADE NOW (fade to the deck that isn't live) |
 | `←` / `→` | Nudge the crossfader |
 | `A` | Toggle automix |
+| `F` | Fade out / fade back in |
 | `Q` / `W` | Back / next on deck A |
 | `O` / `P` | Back / next on deck B |
 

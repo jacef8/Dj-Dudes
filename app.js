@@ -29,7 +29,9 @@ function setStatus(msg) {
 
 const ctx = new (window.AudioContext || window.webkitAudioContext)();
 const master = ctx.createGain();
-master.connect(ctx.destination);
+// FADE OUT / FADE IN ramp the whole mix through this, after the master slider.
+const outFade = ctx.createGain();
+master.connect(outFade).connect(ctx.destination);
 
 function resumeAudio() {
   if (ctx.state !== 'running') ctx.resume();
@@ -375,7 +377,7 @@ class Deck {
   syncYouTubeVolume() {
     if (!this.isYouTube) return;
     const x = state.fade ? currentFadePos()[0] : state.xfade;
-    this.yt.setVolume(curveGains(x)[this.side] * this.volume * +$('#master').value);
+    this.yt.setVolume(curveGains(x)[this.side] * this.volume * +$('#master').value * outFade.gain.value);
   }
 
   /** Start playback now, or as soon as the song finishes loading from disk. */
@@ -433,6 +435,7 @@ class Deck {
 
   play() {
     resumeAudio();
+    if (state.fadedOut) endFadeOut(); // pressing ▶ after a fade out: back to normal volume
     if (this.isSpent && !this.loadNext()) {
       setStatus(`Deck ${this.id}: queue is empty.`);
       return;
@@ -1194,6 +1197,74 @@ $('#repeat-all').addEventListener('change', e => { state.repeatAll = e.target.ch
 
 $('#master').addEventListener('input', e => setParamNow(master.gain, +e.target.value));
 
+/* ---------- fade the whole mix out (and back in) ---------- */
+
+const fadeOutBtn = $('#fade-out');
+
+function renderFadeOutBtn() {
+  fadeOutBtn.textContent = state.fadingOut ? '🔉 FADING OUT…' : state.fadedOut ? '🔊 FADE IN' : '🔉 FADE OUT';
+  fadeOutBtn.classList.toggle('active', !!(state.fadingOut || state.fadedOut));
+}
+
+/** Bring the music down to silence, then pause it. Nothing new starts. */
+function fadeOutAll(dur = state.fadeSec) {
+  const playing = [decks.A, decks.B].filter(d => d.isPlaying);
+  if (!playing.length || state.fadingOut) return;
+  resumeAudio();
+  const now = ctx.currentTime;
+  outFade.gain.cancelScheduledValues(now);
+  outFade.gain.setValueAtTime(outFade.gain.value, now);
+  outFade.gain.linearRampToValueAtTime(0, now + dur);
+  state.fadingOut = { decks: playing.map(d => d.id), until: performance.now() + dur * 1000 };
+  setStatus(`Fading the music out over ${dur}s…`);
+  renderFadeOutBtn();
+}
+
+/** Called often: finishes a fade out (pause, then put the volume back). */
+function updateFadeOut() {
+  const f = state.fadingOut;
+  if (!f || performance.now() < f.until) return;
+  for (const id of f.decks) decks[id].pause();
+  outFade.gain.cancelScheduledValues(ctx.currentTime);
+  outFade.gain.setValueAtTime(1, ctx.currentTime);
+  state.fadingOut = null;
+  state.fadedOut = { decks: f.decks };
+  setStatus('Music faded out. Press FADE IN (or ▶ on a deck) to bring it back.');
+  renderFadeOutBtn();
+}
+
+/** Bring back what was playing before the fade out, rising from silence. */
+function fadeInAll(dur = state.fadeSec) {
+  const f = state.fadedOut;
+  if (!f) return;
+  resumeAudio();
+  const now = ctx.currentTime;
+  outFade.gain.cancelScheduledValues(now);
+  outFade.gain.setValueAtTime(0, now);
+  outFade.gain.linearRampToValueAtTime(1, now + dur);
+  state.fadedOut = null;
+  for (const id of f.decks) if (!decks[id].isSpent) decks[id].start();
+  setStatus('Fading the music back in.');
+  renderFadeOutBtn();
+}
+
+/** Back to normal volume straight away (e.g. the DJ pressed ▶ after a fade out). */
+function endFadeOut() {
+  state.fadedOut = null;
+  state.fadingOut = null;
+  outFade.gain.cancelScheduledValues(ctx.currentTime);
+  outFade.gain.setValueAtTime(1, ctx.currentTime);
+  renderFadeOutBtn();
+}
+
+function toggleFadeOut() {
+  if (state.fadedOut) fadeInAll();
+  else if (!state.fadingOut) fadeOutAll();
+}
+
+fadeOutBtn.addEventListener('click', toggleFadeOut);
+renderFadeOutBtn();
+
 /* ---------- automix ---------- */
 
 const automixBtn = $('#automix');
@@ -1260,7 +1331,7 @@ function automixTick() {
       // them instead of jumping to the other deck. Turning automix on with
       // nothing playing (automixKick) is the one time it starts things itself.
       if (live && !live.isSpent && !state.automixKick) {
-        if (!state.holdNoticed) {
+        if (!state.holdNoticed && !state.fadedOut) {
           state.holdNoticed = true;
           setStatus(`Automix is waiting: deck ${live.id} is paused. Press ▶ to carry on.`);
         }
@@ -1280,7 +1351,7 @@ function automixTick() {
     }
   }
 
-  if (state.fade || live.el.loop) return; // a repeating song never "ends"
+  if (state.fade || state.fadingOut || live.el.loop) return; // a repeating song never "ends"
   const next = live.other;
   const rem = live.remaining;
   if (Number.isFinite(rem) && rem <= state.startBefore && !next.isPlaying && !next.isSpent) {
@@ -1293,6 +1364,7 @@ function automixTick() {
 // Logic loop: setInterval keeps running when the window is in the background.
 setInterval(() => {
   updateFade();
+  updateFadeOut();
   automixTick();
 }, 100);
 
@@ -1602,6 +1674,8 @@ function remoteState() {
     fading: !!state.fade,
     next: nonLiveDeck().id,
     automix: state.automix,
+    fadedOut: !!state.fadedOut,
+    fadingOut: !!state.fadingOut,
     startBefore: state.startBefore,
     fadeSec: state.fadeSec,
     master: +$('#master').value,
@@ -1623,6 +1697,7 @@ if (remoteApi) {
       case 'next': d && d.next(); break;
       case 'back': d && d.back(); break;
       case 'automix': automixBtn.click(); break;
+      case 'fadeOut': toggleFadeOut(); break;
       case 'master':
         if (Number.isFinite(value)) {
           const v = clamp(value, 0, 1.5);
@@ -2140,6 +2215,7 @@ document.addEventListener('keydown', e => {
     x: () => transitionTo(decks.A),
     n: () => transitionTo(decks.B),
     a: () => automixBtn.click(),
+    f: () => toggleFadeOut(),
     q: () => decks.A.back(),
     w: () => decks.A.next(),
     o: () => decks.B.back(),

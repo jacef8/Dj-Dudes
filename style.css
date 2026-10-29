@@ -304,3 +304,7 @@ body.no-screens .deck.is-yt:not(.is-playing) .screen { display: none; }
 .q-by:empty { display: none; }
 .guest-pl-row { margin-top: 10px; }
 .queue.requests-panel[hidden] { display: none; }
+
+/* ---------- FADE OUT / FADE IN ---------- */
+.fade-out { font-weight: 700; letter-spacing: 1px; padding: 8px; }
+.fade-out.active { border-color: #ffd34d; color: #ffd34d; }

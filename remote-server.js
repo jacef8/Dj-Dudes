@@ -13,7 +13,7 @@ const crypto = require('crypto');
 const qrcode = require('qrcode-generator');
 
 const FIRST_PORT = 4747;
-const ACTIONS = new Set(['fadeNow', 'toggle', 'next', 'back', 'automix', 'master']);
+const ACTIONS = new Set(['fadeNow', 'toggle', 'next', 'back', 'automix', 'master', 'fadeOut']);
 const GUEST_WAIT_MS = 10 * 60 * 1000; // one accepted request per phone every 10 minutes
 
 class RemoteServer {
