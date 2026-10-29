@@ -733,6 +733,12 @@ class QueuePanel {
       }
     });
     $('.save-pl', root).addEventListener('click', () => showPlaylists(true));
+    $('.rm-failed', root).addEventListener('click', () => {
+      const before = this.queue.length;
+      for (let i = this.queue.length - 1; i >= 0; i--) if (this.queue[i].error) this.queue.splice(i, 1);
+      setStatus(`Removed ${before - this.queue.length} song${before - this.queue.length === 1 ? '' : 's'} that can't play from ${this.label}.`);
+      renderQueues();
+    });
 
     // Drag & drop: files from the computer, links, or songs from any queue.
     root.addEventListener('dragover', e => {
@@ -830,6 +836,7 @@ class QueuePanel {
     this.root.classList.toggle('has-items', this.queue.length > 0);
     const total = this.queue.reduce((s, t) => s + (Number.isFinite(t.duration) ? t.duration : 0), 0);
     const failed = this.queue.filter(t => t.error).length;
+    $('.rm-failed', this.root).hidden = !failed;
     $('.q-count', this.root).textContent = this.queue.length
       ? `${this.queue.length} song${this.queue.length > 1 ? 's' : ''} · ${fmtTime(total)}` +
         (failed ? ` · ⚠ ${failed} can't play` : '')
@@ -1659,12 +1666,12 @@ function setScreens(on) {
 $('#screens-btn').addEventListener('click', () => {
   const on = document.body.classList.contains('no-screens');
   setScreens(on);
-  const yt = [decks.A, decks.B].filter(d => d.isYouTube).map(d => d.id);
+  const yt = [decks.A, decks.B].filter(d => d.isYouTube && d.isPlaying).map(d => d.id);
   if (on) {
     setStatus('Screens on.');
   } else if (yt.length) {
-    setStatus(`Screens off. Deck ${yt.join(' and ')} keeps its video while it plays YouTube (YouTube requires it), ` +
-      'so the rest of the screens hide once that song is done.');
+    setStatus(`Screens off. Deck ${yt.join(' and ')} keeps its video while a YouTube song plays there (YouTube requires it). ` +
+      'It hides when that deck stops.');
   } else {
     setStatus('Screens off: more room for the queues.');
   }

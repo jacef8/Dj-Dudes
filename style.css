@@ -241,7 +241,8 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 
 .deck.is-yt .yt-host { display: block; }
 .deck.is-yt .viz { display: none; }
 /* Screens off: hide them, except a deck playing YouTube (its player must stay visible). */
-body.no-screens .deck:not(.is-yt) .screen { display: none; }
+body.no-screens .deck:not(.is-yt) .screen,
+body.no-screens .deck.is-yt:not(.is-playing) .screen { display: none; }
 #screens-btn[aria-pressed="false"] { opacity: .6; }
 
 /* EQ and pitch can't touch YouTube's audio */
@@ -276,3 +277,4 @@ body.no-screens .deck:not(.is-yt) .screen { display: none; }
 .queue-head { flex-wrap: wrap; row-gap: 6px; }
 .queue-actions { flex: 1 1 100%; justify-content: flex-start; gap: 4px; }
 .queue-actions button { padding: 3px 8px; }
+.queue-actions .rm-failed { color: var(--danger); border-color: #5a2a2a; }
