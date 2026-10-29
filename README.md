@@ -39,10 +39,11 @@ npm run dist
 
 ## How to use it
 
-1. **Add songs.** Click **+ Songs** or **+ Folder** on Queue A or Queue B, or drag files or folders from Explorer straight onto a queue. MP3, WAV, FLAC, OGG, M4A/AAC and Opus all work.
-2. **Arrange the queues.** Drag songs to reorder them, or drag them across to the other queue. On each song, **⇄** moves it to the other side, **✕** removes it, and **Load** (or a double-click) puts it on the deck right away.
-3. **Fade when you choose.** Press ▶ on a deck. When you're ready for the other side, hit the big **FADE NOW** button (or `Space`). It starts the other deck and glides the crossfader over for you, taking **Fade duration** seconds. **Fade to A** / **Fade to B** do the same toward a particular side. You can also drag the crossfader yourself.
-4. **Or let it mix.** Turn on **AUTOMIX**. It plays A, then fades into B, then into the next song on A, and so on.
+1. **Use the Main Queue** (the green one in the middle) for your set list. Drop songs, folders, YouTube links or a saved playlist into it, and the decks take turns playing them **in that order**: song 1 on A, song 2 on B, song 3 on A, and so on. Queue A and Queue B still work too, and a song placed there plays on that deck before the Main Queue's next song. On a Main Queue song, **→A** / **→B** moves it to that deck's queue, and a double-click loads it on the deck that isn't live.
+2. **Add songs.** Click **+ Songs** or **+ Folder** on Queue A or Queue B, or drag files or folders from Explorer straight onto a queue. MP3, WAV, FLAC, OGG, M4A/AAC and Opus all work.
+3. **Arrange the queues.** Drag songs to reorder them, or drag them across to the other queue. On each song, **⇄** moves it to the other side, **✕** removes it, and **Load** (or a double-click) puts it on the deck right away.
+4. **Fade when you choose.** Press ▶ on a deck. When you're ready for the other side, hit the big **FADE NOW** button (or `Space`). It starts the other deck and glides the crossfader over for you, taking **Fade duration** seconds. **Fade to A** / **Fade to B** do the same toward a particular side. You can also drag the crossfader yourself.
+5. **Or let it mix.** Turn on **AUTOMIX**. It plays A, then fades into B, then into the next song on A, and so on.
    - **Automix starts** sets how many seconds before the end of each song the fade begins (1–60s).
    - **Fade duration** sets how long the fade takes (1–30s). If the fade starts closer to the end than the fade duration, the fade is shortened so it finishes when the song does.
    - **How a fade works:** the next song starts playing at the *beginning* of the fade. During the fade both songs play at once, the old one getting quieter and the new one louder. When the fade finishes, the old deck stops and loads its next song.
@@ -56,7 +57,8 @@ Click **+ YouTube** on a queue and paste links: songs, playlists or albums, one 
 - **Needs the internet** while it plays, and may show **ads** (YouTube's rules).
 - **Some songs can't be played outside YouTube** (the record label blocks it). DJ Dudes skips those automatically, and if it was fading into one, it swings straight back so the music never stops.
 - **EQ and pitch don't work on YouTube songs**, because YouTube doesn't let other apps change its sound. They're greyed out.
-- Private or automatic playlists (like *Liked Music*) can't be read. Make a normal playlist in YouTube Music and share that.
+- Private or automatic playlists (like *Liked Music*) can't be read. Make a normal playlist in YouTube Music, set it to **Public** or **Unlisted**, and share that.
+- **Check which songs can play:** with *Check which songs can play first* ticked (the default), DJ Dudes tries each song in YouTube's player before adding it, taking about 2 seconds a song. The result shows at the top, for example "14 of 20 can play", and blocked songs are added marked ⚠ and skipped, so you find out before the gig. The answer can differ between PCs and networks, so check on the PC you'll DJ with.
 - Only works in the desktop app, not when `index.html` is opened directly.
 
 ### Visualizer screens

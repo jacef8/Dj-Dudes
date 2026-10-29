@@ -83,6 +83,7 @@
 
     <section class="queues">
       <div class="queue" data-deck="A"></div>
+      <div class="queue main-queue" data-deck="M"></div>
       <div class="queue" data-deck="B"></div>
     </section>
   </main>
@@ -110,10 +111,11 @@
 
     <form id="pl-save-form" class="pl-save">
       <input id="pl-name" placeholder="Name for the new playlist" maxlength="80" autocomplete="off">
-      <button type="submit" value="A" class="pl-save-a">Save Queue A</button>
-      <button type="submit" value="B" class="pl-save-b">Save Queue B</button>
+      <button type="submit" value="M" class="pl-save-m">Save Main</button>
+      <button type="submit" value="A" class="pl-save-a">Save A</button>
+      <button type="submit" value="B" class="pl-save-b">Save B</button>
     </form>
-    <p class="pl-note">Saves the song on that deck plus everything in its queue, in order.</p>
+    <p class="pl-note">Save Main saves the Main Queue. Save A / Save B save the song on that deck plus everything in its queue, in order.</p>
 
     <ul id="pl-list" class="pl-list"></ul>
 
@@ -133,9 +135,14 @@
       </p>
       <textarea id="yt-links" rows="5" placeholder="https://music.youtube.com/watch?v=…" spellcheck="false"></textarea>
       <div class="yt-buttons">
-        <button type="submit" value="A" class="pl-save-a">Add to Queue A</button>
-        <button type="submit" value="B" class="pl-save-b">Add to Queue B</button>
+        <button type="submit" value="M" class="pl-save-m">Add to Main Queue</button>
+        <button type="submit" value="A" class="pl-save-a">Queue A</button>
+        <button type="submit" value="B" class="pl-save-b">Queue B</button>
       </div>
+      <label class="check yt-check-row">
+        <input type="checkbox" id="yt-check" checked>
+        Check which songs can play first (about 2 seconds a song). Songs YouTube blocks get a ⚠ and are skipped.
+      </label>
       <p class="yt-progress" id="yt-progress"></p>
       <div class="yt-preview" id="yt-preview" hidden></div>
       <p class="yt-note">

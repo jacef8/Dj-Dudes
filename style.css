@@ -143,7 +143,7 @@ input[type="range"].v { writing-mode: vertical-lr; direction: rtl; height: 96px;
 }
 
 /* ---------- queues ---------- */
-.queues { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; min-height: 240px; }
+.queues { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr); gap: 10px; min-height: 240px; }
 .queue {
   --c: var(--a);
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
@@ -263,3 +263,16 @@ body.no-screens .deck:not(.is-yt) .screen { display: none; }
 .q-item.is-yt .q-dur::before { content: "▶ "; color: #ff4e45; }
 /* Use any spare height in the mixer for a bigger FADE NOW button */
 .fade-now { flex: 1 1 auto; min-height: 44px; max-height: 150px; font-size: 20px; }
+
+/* ---------- Main Queue ---------- */
+.queue.main-queue { --c: var(--live); border-color: #2f4a3c; }
+.queue.main-queue .queue-head h2 { color: var(--live); }
+.queue-actions { flex-wrap: wrap; justify-content: flex-end; }
+.pl-save-m { border-color: var(--live); color: var(--live); }
+.pl-list .to-m { color: var(--live); }
+.yt-buttons { flex-wrap: wrap; }
+.yt-check-row { margin-top: 10px; }
+/* Title on its own line, buttons in one compact row under it (same for all three queues) */
+.queue-head { flex-wrap: wrap; row-gap: 6px; }
+.queue-actions { flex: 1 1 100%; justify-content: flex-start; gap: 4px; }
+.queue-actions button { padding: 3px 8px; }

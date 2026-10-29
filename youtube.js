@@ -307,3 +307,35 @@ async function expandYouTubePlaylist(listId, host) {
     player.destroy();
   }
 }
+
+/**
+ * Try each video in a (muted, visible) YouTube player and report which ones
+ * YouTube lets play here. Resolves to a Map of id → null (plays) or an error
+ * code (blocked). Videos it couldn't decide on within 10 s are left out.
+ * `shouldStop()` is polled between songs so the check can be cancelled.
+ */
+async function checkYouTubePlayable(ids, host, onProgress, shouldStop = () => false) {
+  let settle = null;
+  const player = await createYouTubePlayer(host, {
+    onState: s => { if (s === window.YT.PlayerState.PLAYING && settle) settle(null); },
+    onError: code => { if (settle) settle(code); },
+  });
+  const results = new Map();
+  try {
+    player.mute();
+    const unique = [...new Set(ids)];
+    for (let i = 0; i < unique.length && !shouldStop(); i++) {
+      const outcome = await new Promise(resolve => {
+        const timer = setTimeout(() => { settle = null; resolve(undefined); }, 10000);
+        settle = code => { clearTimeout(timer); settle = null; resolve(code); };
+        player.loadVideoById(unique[i]);
+      });
+      if (outcome !== undefined) results.set(unique[i], outcome);
+      player.stopVideo();
+      if (onProgress) onProgress(i + 1, unique.length);
+    }
+  } finally {
+    player.destroy();
+  }
+  return results;
+}

@@ -197,7 +197,7 @@ class Deck {
     this.vol.connect(this.vizAnalyser);
 
     this.buildDeckUI($(`.deck[data-deck="${id}"]`));
-    this.buildQueueUI($(`.queue[data-deck="${id}"]`));
+    this.panel = new QueuePanel(id, $(`.queue[data-deck="${id}"]`), this);
 
     this.yt = new YouTubeMedia($('.yt-host', this.root));
     this.bindMedia(this.audio);
@@ -227,7 +227,7 @@ class Deck {
     // Keep it in the queue, marked, so it doesn't just vanish.
     if (track) {
       track.error = why;
-      this.queue.push(track);
+      this.homeQueue(track).push(track);
       renderQueues();
     }
     if (!this.track) this.loadNext(); // line up the next song instead of sitting empty
@@ -240,6 +240,11 @@ class Deck {
   }
 
   get isYouTube() { return this.el === this.yt; }
+
+  /** The queue a song goes back to (repeat, BACK, can't play): where it came from. */
+  homeQueue(track) {
+    return track && track.origin === 'M' ? mainQueue.queue : this.queue;
+  }
 
   /** Stop and clear both players. */
   resetMedia() {
@@ -287,7 +292,7 @@ class Deck {
     track.error = null; // loading by hand retries a song that failed before
     if (!back && this.track && this.track !== track) {
       // With "repeat queues" on, the song being replaced goes to the back of the line.
-      if (state.repeatAll) this.queue.push(this.track);
+      if (state.repeatAll) this.homeQueue(this.track).push(this.track);
       this.retire(this.track);
     }
     this.resetMedia();
@@ -376,7 +381,7 @@ class Deck {
   }
 
   unload(requeue = false) {
-    if (requeue && state.repeatAll && this.track) this.queue.push(this.track);
+    if (requeue && state.repeatAll && this.track) this.homeQueue(this.track).push(this.track);
     if (requeue) this.retire(this.track);
     this.ready = false;
     this.playWhenReady = false;
@@ -398,7 +403,16 @@ class Deck {
       return i < 0 ? undefined : q.splice(i, 1)[0];
     };
     let track = take(this.queue);
-    if (!track && state.share) track = take(this.other.queue);
+    let origin = this.id;
+    if (!track) {
+      track = take(mainQueue.queue);
+      origin = 'M';
+    }
+    if (!track && state.share) {
+      track = take(this.other.queue);
+      origin = this.id;
+    }
+    if (track) track.origin = origin;
     // Repeat with only one song left: play it again.
     if (!track && state.repeatAll && this.track && this.el.ended) track = this.track;
     if (!track) return false;
@@ -441,11 +455,11 @@ class Deck {
     }
     const prev = this.history.pop();
     // "Repeat queues" may have put it back in a queue already — take it out.
-    for (const d of [decks.A, decks.B]) {
-      const i = d.queue.indexOf(prev);
-      if (i >= 0) d.queue.splice(i, 1);
+    for (const p of Object.values(queuePanels)) {
+      const i = p.queue.indexOf(prev);
+      if (i >= 0) p.queue.splice(i, 1);
     }
-    this.queue.unshift(this.track); // the current song becomes "up next" again
+    this.homeQueue(this.track).unshift(this.track); // the current song becomes "up next" again
     this.load(prev, { back: true });
     if (wasPlaying) this.start();
   }
@@ -655,12 +669,40 @@ class Deck {
     g.fillStyle = '#fff';
     g.fillRect(playX - 1, 0, 2, h);
   }
+}
 
-  buildQueueUI(root) {
+/* ---------- queues: Queue A, Queue B and the Main Queue ---------- */
+
+/**
+ * One queue list on screen. Queue A and Queue B belong to a deck. The Main
+ * Queue (id 'M') feeds whichever deck needs its next song, so with automix
+ * its order is the play order: song 1 on A, song 2 on B, song 3 on A...
+ */
+class QueuePanel {
+  constructor(id, root, deck = null) {
+    this.id = id;
+    this.deck = deck;
+    this.queue = deck ? deck.queue : [];
+    this.label = deck ? `Queue ${id}` : 'the Main Queue';
+    this.build(root);
+  }
+
+  /** After songs were added: get them onto any deck that's sitting empty. */
+  afterAdd() {
+    if (!this.deck) fillEmptyDecks();
+    else if (!this.deck.track && !this.deck.isPlaying) this.deck.loadNext();
+  }
+
+  build(root) {
     root.append($('#queue-tpl').content.cloneNode(true));
-    this.qroot = root;
+    this.root = root;
     this.qlist = $('.queue-list', root);
-    $('.q-letter', root).textContent = this.id;
+    $('h2', root).firstChild.nodeValue = this.deck ? 'Queue ' : 'Main Queue ';
+    $('.q-letter', root).textContent = this.deck ? this.id : '';
+    if (!this.deck) {
+      $('.queue-empty', root).innerHTML =
+        '<span>Drop songs here and both decks take turns playing them, in this order</span>';
+    }
 
     const fileInput = $('.file-input', root);
     const folderInput = $('.folder-input', root);
@@ -685,13 +727,14 @@ class Deck {
       renderQueues();
     });
     $('.clear', root).addEventListener('click', () => {
-      if (this.queue.length && confirm(`Remove all ${this.queue.length} songs from Queue ${this.id}?`)) {
+      if (this.queue.length && confirm(`Remove all ${this.queue.length} songs from ${this.label}?`)) {
         this.queue.length = 0;
         renderQueues();
       }
     });
+    $('.save-pl', root).addEventListener('click', () => showPlaylists(true));
 
-    // Drag & drop: files from the computer, or songs from either queue.
+    // Drag & drop: files from the computer, links, or songs from any queue.
     root.addEventListener('dragover', e => {
       e.preventDefault();
       root.classList.add('drag-over');
@@ -716,13 +759,14 @@ class Deck {
       const moved = e.dataTransfer.getData('application/x-dj-track');
       if (moved) {
         const { from, id } = JSON.parse(moved);
-        const src = decks[from].queue;
+        const src = queuePanels[from].queue;
         const i = src.findIndex(t => t.id === id);
         if (i < 0) return;
         const [track] = src.splice(i, 1);
         if (src === this.queue && i < index) index--;
         this.queue.splice(index, 0, track);
         renderQueues();
+        this.afterAdd();
         return;
       }
       // A link dragged from the browser's address bar or a YouTube page.
@@ -744,18 +788,33 @@ class Deck {
     }
     this.queue.splice(index, 0, ...audio.map(file =>
       makeTrack({ file, path: window.native ? window.native.pathForFile(file) : '' })));
-    setStatus(`Added ${audio.length} song${audio.length > 1 ? 's' : ''} to Queue ${this.id}.`);
+    setStatus(`Added ${audio.length} song${audio.length > 1 ? 's' : ''} to ${this.label}.`);
     renderQueues();
-    if (!this.track && !this.isPlaying) this.loadNext();
+    this.afterAdd();
   }
 
-  renderQueue() {
+  /** Put a queued song on a deck right now (asks first if that deck is on air). */
+  loadNow(track, deck) {
+    if (!deck.confirmInterrupt()) return;
+    this.queue.splice(this.queue.indexOf(track), 1);
+    track.origin = this.id;
+    deck.load(track);
+  }
+
+  moveTo(track, panel) {
+    this.queue.splice(this.queue.indexOf(track), 1);
+    panel.queue.push(track);
+    renderQueues();
+    panel.afterAdd();
+  }
+
+  render() {
     const list = this.qlist;
     list.textContent = '';
-    this.qroot.classList.toggle('has-items', this.queue.length > 0);
+    this.root.classList.toggle('has-items', this.queue.length > 0);
     const total = this.queue.reduce((s, t) => s + (Number.isFinite(t.duration) ? t.duration : 0), 0);
     const failed = this.queue.filter(t => t.error).length;
-    $('.q-count', this.qroot).textContent = this.queue.length
+    $('.q-count', this.root).textContent = this.queue.length
       ? `${this.queue.length} song${this.queue.length > 1 ? 's' : ''} · ${fmtTime(total)}` +
         (failed ? ` · ⚠ ${failed} can't play` : '')
       : '';
@@ -766,34 +825,33 @@ class Deck {
         (track.error ? ' has-error' : '');
       li.draggable = true;
       li.dataset.id = track.id;
+      const where = this.deck ? `deck ${this.id}` : 'the next deck';
       li.title = `${track.youtubeId ? youtubeUrl(track.youtubeId) : track.path || track.fileName}\n` +
-        (track.error ? `Can't play: ${track.error}. Double-click to try again.` : `Double-click to load on deck ${this.id}`);
+        (track.error ? `Can't play: ${track.error}. Double-click to try again.` : `Double-click to load on ${where}`);
+      const buttons = this.deck
+        ? `<button class="load" title="Load on deck ${this.id} now">Load</button>
+           <button class="swap" title="Move to Queue ${this.deck.other.id}">⇄</button>`
+        : `<button class="to-a" title="Move to Queue A">→A</button>
+           <button class="to-b" title="Move to Queue B">→B</button>`;
       li.innerHTML = `
         <span class="q-num"></span>
         <span class="q-main"><span class="q-name"></span><span class="q-err"></span></span>
         <span class="q-dur"></span>
-        <span class="q-btns">
-          <button class="load" title="Load on deck ${this.id} now">Load</button>
-          <button class="swap" title="Move to Queue ${this.other.id}">⇄</button>
-          <button class="rm" title="Remove">✕</button>
-        </span>`;
+        <span class="q-btns">${buttons}<button class="rm" title="Remove">✕</button></span>`;
       $('.q-num', li).textContent = i + 1;
       $('.q-name', li).textContent = track.name;
       $('.q-err', li).textContent = track.error ? `⚠ Can't play: ${track.error}` : '';
       $('.q-dur', li).textContent = fmtTime(track.duration);
 
-      const loadNow = () => {
-        if (!this.confirmInterrupt()) return;
-        this.queue.splice(this.queue.indexOf(track), 1);
-        this.load(track);
-      };
-      li.addEventListener('dblclick', loadNow);
-      $('.load', li).addEventListener('click', loadNow);
-      $('.swap', li).addEventListener('click', () => {
-        this.queue.splice(this.queue.indexOf(track), 1);
-        this.other.queue.push(track);
-        renderQueues();
-      });
+      if (this.deck) {
+        li.addEventListener('dblclick', () => this.loadNow(track, this.deck));
+        $('.load', li).addEventListener('click', () => this.loadNow(track, this.deck));
+        $('.swap', li).addEventListener('click', () => this.moveTo(track, this.deck.other.panel));
+      } else {
+        li.addEventListener('dblclick', () => this.loadNow(track, nonLiveDeck()));
+        $('.to-a', li).addEventListener('click', () => this.moveTo(track, decks.A.panel));
+        $('.to-b', li).addEventListener('click', () => this.moveTo(track, decks.B.panel));
+      }
       $('.rm', li).addEventListener('click', () => {
         this.queue.splice(this.queue.indexOf(track), 1);
         renderQueues();
@@ -836,10 +894,16 @@ async function filesFromDrop(dt) {
 const decks = {};
 decks.A = new Deck('A');
 decks.B = new Deck('B');
+const mainQueue = new QueuePanel('M', $('.queue[data-deck="M"]'));
+const queuePanels = { A: decks.A.panel, B: decks.B.panel, M: mainQueue };
+
+/** Give each empty deck its next song (deck A first, so the Main Queue's order is kept). */
+function fillEmptyDecks() {
+  for (const d of [decks.A, decks.B]) if (!d.track && !d.isPlaying) d.loadNext();
+}
 
 function renderQueues() {
-  decks.A.renderQueue();
-  decks.B.renderQueue();
+  for (const p of Object.values(queuePanels)) p.render();
 }
 
 /* ---------- crossfader ---------- */
@@ -1004,7 +1068,7 @@ automixBtn.addEventListener('click', () => {
     setAutomix(false, 'Automix off — you have the controls.');
     return;
   }
-  const hasMusic = [decks.A, decks.B].some(d => !d.isSpent || d.queue.length);
+  const hasMusic = mainQueue.queue.length > 0 || [decks.A, decks.B].some(d => !d.isSpent || d.queue.length);
   if (!hasMusic) {
     setStatus('Add some songs to Queue A or Queue B first.');
     return;
@@ -1176,10 +1240,13 @@ const playlists = window.native ? desktopStore : browserStore;
 const plDialog = $('#playlists');
 const plName = $('#pl-name');
 
-/** What a deck is lined up to play: the loaded song (unless finished) and its queue. */
-function setFor(deck) {
-  return [...(deck.isSpent ? [] : [deck.track]), ...deck.queue];
+/** What a queue is lined up to play (for a deck's queue: the song on the deck too). */
+function setFor(panel) {
+  const d = panel.deck;
+  return [...(d && !d.isSpent ? [d.track] : []), ...panel.queue];
 }
+
+const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 async function renderPlaylists() {
   const list = $('#pl-list');
@@ -1202,13 +1269,15 @@ async function renderPlaylists() {
     li.innerHTML = `
       <span class="pl-name"></span>
       <span class="pl-meta"></span>
-      <button class="to-a" title="Add these songs to the end of Queue A">Add to A</button>
-      <button class="to-b" title="Add these songs to the end of Queue B">Add to B</button>
+      <button class="to-m" title="Add these songs to the end of the Main Queue">Add to Main</button>
+      <button class="to-a" title="Add these songs to the end of Queue A">A</button>
+      <button class="to-b" title="Add these songs to the end of Queue B">B</button>
       <button class="del" title="Delete this playlist (your music files are not touched)">✕</button>`;
     $('.pl-name', li).textContent = p.name;
     $('.pl-meta', li).textContent = `${p.count} song${p.count === 1 ? '' : 's'}`;
-    $('.to-a', li).addEventListener('click', () => openPlaylist(p.name, decks.A));
-    $('.to-b', li).addEventListener('click', () => openPlaylist(p.name, decks.B));
+    $('.to-m', li).addEventListener('click', () => openPlaylist(p.name, mainQueue));
+    $('.to-a', li).addEventListener('click', () => openPlaylist(p.name, decks.A.panel));
+    $('.to-b', li).addEventListener('click', () => openPlaylist(p.name, decks.B.panel));
     $('.del', li).addEventListener('click', async () => {
       if (!confirm(`Delete the playlist "${p.name}"? Your music files are not touched.`)) return;
       await playlists.remove(p.name);
@@ -1218,13 +1287,13 @@ async function renderPlaylists() {
   }
 }
 
-async function openPlaylist(name, deck) {
+async function openPlaylist(name, panel) {
   try {
     const { tracks, missing } = await playlists.load(name);
-    deck.queue.push(...tracks);
-    if (!deck.track && !deck.isPlaying) deck.loadNext();
+    panel.queue.push(...tracks);
     renderQueues();
-    let msg = `Added "${name}" (${tracks.length} songs) to Queue ${deck.id}.`;
+    panel.afterAdd();
+    let msg = `Added "${name}" (${tracks.length} songs) to ${panel.label}.`;
     if (missing) msg += ` ${missing} song${missing === 1 ? " wasn't" : "s weren't"} found — moved or deleted?`;
     setStatus(msg);
     plDialog.close();
@@ -1233,16 +1302,16 @@ async function openPlaylist(name, deck) {
   }
 }
 
-async function savePlaylist(deck) {
+async function savePlaylist(panel) {
   const name = plName.value.trim();
   if (!name) {
     plName.focus();
     plName.placeholder = 'Type a name first';
     return;
   }
-  const tracks = setFor(deck);
+  const tracks = setFor(panel);
   if (!tracks.length) {
-    setStatus(`Queue ${deck.id} is empty — nothing to save.`);
+    setStatus(`${capitalize(panel.label)} is empty — nothing to save.`);
     return;
   }
   const existing = await playlists.list();
@@ -1250,7 +1319,7 @@ async function savePlaylist(deck) {
       !confirm(`A playlist called "${name}" already exists. Replace it?`)) return;
   try {
     const skipped = await playlists.save(name, tracks);
-    let msg = `Saved "${name}" (${tracks.length - skipped} songs from deck ${deck.id}).`;
+    let msg = `Saved "${name}" (${tracks.length - skipped} songs from ${panel.label}).`;
     if (skipped) msg += ` ${skipped} couldn't be saved.`;
     setStatus(msg);
     plName.value = '';
@@ -1270,13 +1339,10 @@ function showPlaylists(focusSave = false) {
 
 $('#pl-save-form').addEventListener('submit', e => {
   e.preventDefault();
-  savePlaylist(decks[e.submitter && e.submitter.value === 'B' ? 'B' : 'A']);
+  savePlaylist(queuePanels[e.submitter && e.submitter.value] || mainQueue);
 });
 $('#playlists-btn').addEventListener('click', () => showPlaylists());
 $('#pl-open-folder').addEventListener('click', () => window.native.openPlaylistFolder());
-for (const deck of [decks.A, decks.B]) {
-  $('.save-pl', deck.qroot).addEventListener('click', () => showPlaylists(true));
-}
 
 /* ---------- phone remote (desktop app only) ---------- */
 
@@ -1296,6 +1362,7 @@ function remoteState() {
   return {
     A: deck(decks.A),
     B: deck(decks.B),
+    mainCount: mainQueue.queue.filter(t => !t.error).length,
     xfade: state.xfade,
     fading: !!state.fade,
     next: nonLiveDeck().id,
@@ -1395,10 +1462,12 @@ const ytProgress = $('#yt-progress');
 const ytPreview = $('#yt-preview');
 
 /**
- * Add every YouTube / YouTube Music link found in `text` to a deck's queue.
- * Playlist and album links are expanded into their songs.
+ * Add every YouTube / YouTube Music link found in `text` to a queue.
+ * Playlist and album links are expanded into their songs. With `check`, each
+ * song is first tried in YouTube's player so blocked ones show up as ⚠ now,
+ * not in the middle of a set.
  */
-async function addYouTubeLinks(text, deck, index = deck.queue.length) {
+async function addYouTubeLinks(text, panel, index = panel.queue.length, { check = false } = {}) {
   if (!youtubeSupported) {
     setStatus('YouTube songs only play in the desktop app — start DJ Dudes with "Start DJ Dudes.bat".');
     return 0;
@@ -1432,14 +1501,43 @@ async function addYouTubeLinks(text, deck, index = deck.queue.length) {
       ytProgress.textContent = '';
     }
   }
+  let blocked = 0;
+  let checked = 0;
+  if (check && tracks.length && ytDialog.open) {
+    ytPreview.hidden = false;
+    try {
+      const results = await checkYouTubePlayable(tracks.map(t => t.youtubeId), ytPreview, (done, total) => {
+        ytProgress.textContent = `Checking which songs can play: ${done} of ${total}… (close this window to stop)`;
+      }, () => !ytDialog.open);
+      for (const t of tracks) {
+        if (!results.has(t.youtubeId)) continue;
+        checked++;
+        const code = results.get(t.youtubeId);
+        if (typeof code === 'number') {
+          t.error = YT_ERRORS[code] || `YouTube error ${code}`;
+          blocked++;
+        }
+      }
+    } catch (err) {
+      setStatus(`Couldn't check the songs: ${err.message}`);
+    } finally {
+      ytPreview.hidden = true;
+      ytProgress.textContent = '';
+    }
+  }
   if (openedHere && ytDialog.open) ytDialog.close();
   if (!tracks.length) return 0;
-  deck.queue.splice(Math.min(index, deck.queue.length), 0, ...tracks);
-  let onDeck = false;
-  if (!deck.track && !deck.isPlaying) onDeck = deck.loadNext() && tracks.includes(deck.track);
+  panel.queue.splice(Math.min(index, panel.queue.length), 0, ...tracks);
   renderQueues();
-  let msg = `Added ${tracks.length} YouTube song${tracks.length > 1 ? 's' : ''} to Queue ${deck.id}.`;
-  if (onDeck) msg += ` The first one is loaded on deck ${deck.id}.`;
+  panel.afterAdd();
+  const onDeck = [decks.A, decks.B].find(d => tracks.includes(d.track));
+  let msg = `Added ${tracks.length} YouTube song${tracks.length > 1 ? 's' : ''} to ${panel.label}.`;
+  if (checked) {
+    msg += blocked
+      ? ` ${checked - blocked} of ${checked} can play; ⚠ ${blocked} can't (blocked outside YouTube) and will be skipped.`
+      : ` All ${checked} checked songs can play.`;
+  }
+  if (onDeck) msg += ` The first one is loaded on deck ${onDeck.id}.`;
   if (failed) msg += ` ${failed} playlist${failed > 1 ? 's' : ''} couldn't be read.`;
   setStatus(msg);
   return tracks.length;
@@ -1457,10 +1555,10 @@ function showYouTubeDialog(prefill = '') {
 
 $('#yt-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const deck = decks[e.submitter && e.submitter.value === 'B' ? 'B' : 'A'];
+  const panel = queuePanels[e.submitter && e.submitter.value] || mainQueue;
   const buttons = [...e.target.querySelectorAll('button')];
   buttons.forEach(b => { b.disabled = true; });
-  const added = await addYouTubeLinks(ytLinks.value, deck);
+  const added = await addYouTubeLinks(ytLinks.value, panel, panel.queue.length, { check: $('#yt-check').checked });
   buttons.forEach(b => { b.disabled = false; });
   if (added) {
     ytLinks.value = '';

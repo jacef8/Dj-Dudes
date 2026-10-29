@@ -212,6 +212,8 @@
           b.textContent = d.upNext[0];
           u.nextUp.append(b);
           if (d.queued > 1) u.nextUp.append(` + ${d.queued - 1} more`);
+        } else if (st.mainCount) {
+          u.nextUp.textContent = `Up next: from the Main Queue (${st.mainCount} song${st.mainCount > 1 ? 's' : ''})`;
         } else {
           u.nextUp.textContent = 'Queue empty';
         }
