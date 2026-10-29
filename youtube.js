@@ -280,29 +280,39 @@ const PLAYLIST_UNREADABLE =
 
 /**
  * Turn a playlist/album link into its video ids, using a temporary player
- * shown in `host` (YouTube requires its player to be visible).
+ * shown in `host` (YouTube requires its player to be visible). The player's
+ * state events vary between PCs, so this just keeps asking the player for its
+ * list: first after cueing the playlist, then (if that stays empty) after
+ * starting it muted.
  */
 async function expandYouTubePlaylist(listId, host) {
-  let onCued;
-  let onFail;
-  const cued = new Promise((resolve, reject) => { onCued = resolve; onFail = reject; });
-  const player = await createYouTubePlayer(host, {
-    onState: s => { if (s === window.YT.PlayerState.CUED) onCued(); },
-    onError: code => onFail(new Error(YT_ERRORS[code] || `YouTube error ${code}`)),
-  });
-  try {
-    player.cuePlaylist({ listType: 'playlist', list: listId });
-    await Promise.race([
-      cued,
-      new Promise((_, reject) => setTimeout(() => reject(new Error(PLAYLIST_UNREADABLE)), 15000)),
-    ]);
-    // The list sometimes fills in a moment after the first cue.
-    for (let i = 0; i < 20 && !(player.getPlaylist() || []).length; i++) {
-      await new Promise(r => setTimeout(r, 250));
+  const player = await createYouTubePlayer(host, {}); // errors about one video don't matter here
+  const waitForIds = async ms => {
+    for (let t = 0; t < ms; t += 300) {
+      const ids = player.getPlaylist() || [];
+      if (ids.length) {
+        // The list can keep filling in for a moment; wait until it stops growing.
+        await new Promise(r => setTimeout(r, 900));
+        const again = player.getPlaylist() || [];
+        if (again.length === ids.length) return again;
+        t = 0;
+        continue;
+      }
+      await new Promise(r => setTimeout(r, 300));
     }
-    const ids = player.getPlaylist() || [];
-    if (!ids.length) throw new Error(PLAYLIST_UNREADABLE);
-    return ids;
+    return [];
+  };
+  try {
+    player.mute();
+    player.cuePlaylist({ listType: 'playlist', list: listId });
+    let ids = await waitForIds(12000);
+    if (!ids.length) {
+      player.loadPlaylist({ listType: 'playlist', list: listId });
+      ids = await waitForIds(12000);
+      player.stopVideo();
+    }
+    if (!ids.length) throw new Error(`${PLAYLIST_UNREADABLE} [no songs after 24 s]`);
+    return [...new Set(ids)];
   } finally {
     player.destroy();
   }
