@@ -249,6 +249,44 @@ ipcMain.handle('remote-reset', async () => {
   return remote.info();
 });
 
+/* ---------- guest song requests ---------- */
+
+ipcMain.handle('guest-info', () => remote.guestInfo());
+ipcMain.handle('guest-set-enabled', async (_e, on) => {
+  await remote.setGuestsEnabled(on);
+  return remote.guestInfo();
+});
+ipcMain.handle('guest-reset', async () => {
+  await remote.resetGuestToken();
+  return remote.guestInfo();
+});
+ipcMain.on('guest-state', (_e, state) => remote && remote.pushGuestState(state));
+ipcMain.on('guest-library', (_e, list) => remote && remote.setGuestLibrary(list));
+
+// A guest asked for a song: the app decides (duplicates etc.) and answers.
+let nextGuestRequestId = 1;
+const pendingGuestRequests = new Map();
+ipcMain.on('guest-request-result', (_e, { id, ok, message }) => {
+  const done = pendingGuestRequests.get(id);
+  if (done) done({ ok: !!ok, message: String(message || '') });
+});
+function askAppAboutGuestRequest(request) {
+  return new Promise((resolve, reject) => {
+    if (!mainWindow) return reject(new Error('no window'));
+    const id = nextGuestRequestId++;
+    const timer = setTimeout(() => {
+      pendingGuestRequests.delete(id);
+      reject(new Error('timeout'));
+    }, 5000);
+    pendingGuestRequests.set(id, result => {
+      clearTimeout(timer);
+      pendingGuestRequests.delete(id);
+      resolve(result);
+    });
+    mainWindow.webContents.send('guest-request', { id, ...request });
+  });
+}
+
 // Look like plain Chrome to websites (YouTube is pickier with unknown browsers).
 app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|dj-dudes|DJ Dudes)\/\S+/gi, '');
 
@@ -261,10 +299,9 @@ app.whenReady().then(async () => {
   remote = new RemoteServer({
     settingsFile: portableDir ? path.join(dataDir(), 'remote.json') : path.join(app.getPath('userData'), 'remote.json'),
     onCommand: cmd => mainWindow && mainWindow.webContents.send('remote-cmd', cmd),
+    onGuestRequest: askAppAboutGuestRequest,
   });
-  if (remote.settings.enabled) {
-    try { await remote.start(); } catch (err) { console.error('Phone remote failed to start:', err); }
-  }
+  try { await remote.sync(); } catch (err) { console.error('Phone remote failed to start:', err); }
   createWindow();
 });
 app.on('window-all-closed', () => app.quit());

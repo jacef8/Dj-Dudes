@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e0f13">
+  <title>Request a song</title>
+  <style>
+    :root {
+      --bg: #0e0f13; --panel: #171920; --panel-2: #1f222b; --line: #2b2f3a;
+      --text: #e7e9ee; --muted: #8a90a0; --a: #2ec5ff; --b: #ff8a2e; --live: #3ddc84; --danger: #ff5d5d;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); }
+    body { padding: 14px 14px calc(90px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; }
+    h1 { margin: 0; font-size: 22px; }
+    h1 span { color: var(--b); }
+    .conn { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .conn::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+    .conn.ok::before { background: var(--live); }
+
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 12px; }
+    .label { font-size: 11px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .now { font-size: 17px; font-weight: 700; }
+    .next { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+    .next li { margin: 2px 0; }
+    .waiting { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+    input {
+      width: 100%; font: inherit; font-size: 16px; color: var(--text); background: var(--bg);
+      border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+    }
+    .name-row { margin-top: 12px; }
+    .search { position: sticky; top: 0; padding: 10px 0; background: var(--bg); z-index: 2; margin-top: 4px; }
+
+    .songs { list-style: none; margin: 0; padding: 0; }
+    .songs li { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+    .songs .t { flex: 1; min-width: 0; font-size: 15px; }
+    .songs button {
+      font: inherit; font-weight: 700; color: #000; background: var(--live); border: none;
+      border-radius: 8px; padding: 9px 14px; flex: none;
+    }
+    .songs button:disabled { background: var(--panel-2); color: var(--muted); }
+    .empty { color: var(--muted); text-align: center; padding: 30px 0; }
+
+    .toast {
+      position: fixed; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom));
+      max-width: 536px; margin: 0 auto; padding: 14px; border-radius: 12px; font-weight: 600;
+      background: var(--live); color: #000; text-align: center; display: none;
+    }
+    .toast.bad { background: var(--danger); }
+    .toast.show { display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎶 Request a <span>song</span></h1>
+    <div class="conn" id="conn">Connecting…</div>
+  </header>
+
+  <div class="card">
+    <div class="label">Now playing</div>
+    <div class="now" id="now">—</div>
+    <div class="label" style="margin-top:10px">Coming up</div>
+    <ol class="next" id="next"></ol>
+    <div class="waiting" id="waiting"></div>
+  </div>
+
+  <div class="name-row">
+    <input id="name" maxlength="30" placeholder="Your name (optional)" autocomplete="name">
+  </div>
+  <div class="search">
+    <input id="q" type="search" placeholder="Search for a song…" autocomplete="off">
+  </div>
+  <ul class="songs" id="songs"></ul>
+  <div class="empty" id="empty" hidden>No songs match.</div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    'use strict';
+    const key = new URLSearchParams(location.search).get('g') || '';
+    const $ = s => document.querySelector(s);
+    let library = [];
+    let busy = false;
+
+    const nameInput = $('#name');
+    try { nameInput.value = localStorage.getItem('dj-guest-name') || ''; } catch { /* fine */ }
+    nameInput.addEventListener('input', () => {
+      try { localStorage.setItem('dj-guest-name', nameInput.value); } catch { /* fine */ }
+    });
+
+    let toastTimer;
+    function toast(text, ok) {
+      const t = $('#toast');
+      t.textContent = text;
+      t.classList.toggle('bad', !ok);
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 4500);
+    }
+
+    function renderSongs() {
+      const q = $('#q').value.trim().toLowerCase();
+      const list = $('#songs');
+      list.textContent = '';
+      const matches = library.filter(s => !q || s.name.toLowerCase().includes(q));
+      $('#empty').hidden = matches.length > 0 || !library.length;
+      for (const s of matches.slice(0, 300)) {
+        const li = document.createElement('li');
+        const t = document.createElement('span');
+        t.className = 't';
+        t.textContent = s.name;
+        const b = document.createElement('button');
+        b.textContent = 'Request';
+        b.addEventListener('click', () => request(s, b));
+        li.append(t, b);
+        list.append(li);
+      }
+    }
+    $('#q').addEventListener('input', renderSongs);
+
+    async function request(song, button) {
+      if (busy) return;
+      busy = true;
+      button.disabled = true;
+      try {
+        const res = await fetch(`/guest/request?g=${encodeURIComponent(key)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: song.key, name: nameInput.value }),
+        });
+        const r = await res.json().catch(() => ({ ok: false, message: 'Something went wrong.' }));
+        toast(r.message || (r.ok ? 'Sent!' : 'Not sent.'), r.ok);
+      } catch {
+        toast("Couldn't reach the DJ's computer. Are you on the right Wi-Fi?", false);
+      } finally {
+        busy = false;
+        button.disabled = false;
+      }
+    }
+
+    function showConn(ok) {
+      const c = $('#conn');
+      c.classList.toggle('ok', ok);
+      c.textContent = ok ? 'Connected' : 'Offline';
+    }
+
+    const events = new EventSource(`/guest/events?g=${encodeURIComponent(key)}`);
+    events.onopen = () => showConn(true);
+    events.onerror = () => showConn(false);
+    events.addEventListener('library', e => {
+      library = JSON.parse(e.data);
+      renderSongs();
+      if (!library.length) $('#songs').innerHTML = '<li class="empty" style="justify-content:center">The DJ hasn\'t picked the request list yet.</li>';
+    });
+    events.onmessage = e => {
+      const st = JSON.parse(e.data);
+      showConn(true);
+      $('#now').textContent = st.nowPlaying.length ? st.nowPlaying.join('  →  ') : 'Nothing right now';
+      const next = $('#next');
+      next.textContent = '';
+      for (const n of st.upNext) {
+        const li = document.createElement('li');
+        li.textContent = n;
+        next.append(li);
+      }
+      if (!st.upNext.length) next.innerHTML = '<li>—</li>';
+      $('#waiting').textContent = st.waiting
+        ? `${st.waiting} request${st.waiting > 1 ? 's' : ''} waiting for the DJ`
+        : '';
+    };
+  </script>
+</body>
+</html>

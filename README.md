@@ -88,6 +88,15 @@ On the phone you see both decks: what's playing, time left, what's up next, whic
 
 The link contains a secret key, so other people on the Wi-Fi can't take over. **New link** makes a fresh key and disconnects every phone. The setting is remembered, so next time you only need to re-open the bookmarked link. If the phone's screen goes to sleep, the page reconnects when you wake it.
 
+### Guest song requests (desktop app)
+Let people at a dance ask for songs from their phones, only from a list you choose, and only played when you say so.
+
+1. Click **🙋 Requests** (top) to show the Requests panel, then **Settings**.
+2. Choose the saved playlist guests may pick from (make a "Requests OK" playlist if you like) and tick **Let guests request songs**.
+3. Show guests the QR code. They need to be on the same Wi-Fi as the PC, or your phone's hotspot.
+
+Guests see what's playing and what's coming up, can search the allowed songs, and tap **Request** (with their name if they want). Each phone can make **1 request every 10 minutes**, and songs that are already waiting, coming up or just played are turned down with a friendly message. Requests wait in the **Requests panel** until you click **✓** (approve) or **✕** (decline). Approved songs go near the top of the Main Queue, in the order you approved them, marked "🙋 requested by …". Click **Hide** or the 🙋 button to put the panel away; the button shows how many requests are waiting. Guests have their own link and key, and can't control anything else.
+
 ### Deck controls
 | Control | What it does |
 |---|---|

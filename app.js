@@ -908,12 +908,13 @@ class QueuePanel {
            <button class="to-b" title="Move to Queue B">→B</button>`;
       li.innerHTML = `
         <span class="q-num"></span>
-        <span class="q-main"><span class="q-name"></span><span class="q-err"></span></span>
+        <span class="q-main"><span class="q-name"></span><span class="q-by"></span><span class="q-err"></span></span>
         <span class="q-dur"></span>
         <span class="q-btns">${buttons}<button class="rm" title="Remove">✕</button></span>`;
       $('.q-num', li).textContent = i + 1;
       $('.q-name', li).textContent = track.name;
       $('.q-err', li).textContent = track.error ? `⚠ Can't play: ${track.error}` : '';
+      $('.q-by', li).textContent = track.requestedBy !== undefined ? `🙋 requested${track.requestedBy ? ` by ${track.requestedBy}` : ' by a guest'}` : '';
       $('.q-dur', li).textContent = fmtTime(track.duration);
 
       if (this.deck) {
@@ -1879,6 +1880,225 @@ $('#screens-btn').addEventListener('click', () => {
   }
 });
 try { setScreens(localStorage.getItem('dj-screens') !== '0'); } catch { setScreens(true); }
+
+/* ---------- guest song requests (desktop app only) ---------- */
+
+const guestApi = window.native && window.native.guests;
+const guest = {
+  playlist: '',
+  library: [],   // [{ key, name, youtubeId, path, duration }] songs guests may request
+  waiting: [],   // [{ id, key, song, by, at }] requests waiting for the DJ
+  nextId: 1,
+};
+const requestsPanel = $('#requests-panel');
+const guestsDialog = $('#guests-dialog');
+
+/** Same song? Compare by YouTube id or file path. */
+const songKey = t => (t.youtubeId ? `yt:${t.youtubeId}` : t.path ? `f:${t.path}` : t.file ? `n:${t.file.name}` : '');
+
+function showRequestsPanel(on) {
+  requestsPanel.hidden = !on;
+  $('#queues').classList.toggle('with-requests', on);
+  $('#requests-btn').setAttribute('aria-pressed', String(on));
+  try { localStorage.setItem('dj-requests-panel', on ? '1' : '0'); } catch { /* not important */ }
+}
+
+function renderRequests() {
+  const list = $('#req-list');
+  list.textContent = '';
+  for (const r of guest.waiting) {
+    const li = document.createElement('li');
+    li.className = 'req-item';
+    li.innerHTML = `
+      <span class="q-main"><span class="q-name"></span><span class="req-by"></span></span>
+      <button class="ok" title="Add to the Main Queue, after other approved requests">✓</button>
+      <button class="no" title="Decline">✕</button>`;
+    $('.q-name', li).textContent = r.song;
+    const mins = Math.max(0, Math.round((Date.now() - r.at) / 60000));
+    $('.req-by', li).textContent = `${r.by || 'a guest'} · ${mins ? `${mins} min ago` : 'just now'}`;
+    $('.ok', li).addEventListener('click', () => approveRequest(r));
+    $('.no', li).addEventListener('click', () => declineRequest(r));
+    list.append(li);
+  }
+  const n = guest.waiting.length;
+  $('#req-empty').hidden = n > 0;
+  requestsPanel.classList.toggle('has-items', n > 0);
+  $('#req-count').textContent = n ? `${n} waiting` : '';
+  $('#req-approve-all').disabled = !n;
+  $('#requests-btn-label').textContent = n ? `Requests (${n})` : 'Requests';
+  $('#requests-btn').classList.toggle('has-requests', n > 0 && requestsPanel.hidden);
+}
+
+/** A guest asked for a song (called by the desktop app's server). */
+function handleGuestRequest({ key, name }) {
+  const spec = guest.library.find(s => s.key === key);
+  if (!spec) return { ok: false, message: "That song isn't on the request list." };
+  if (guest.waiting.some(r => r.key === key)) {
+    return { ok: false, message: `"${spec.name}" has already been requested. The DJ will see it.` };
+  }
+  const lined = [...Object.values(queuePanels).flatMap(p => p.queue), decks.A.track, decks.B.track].filter(Boolean);
+  if (lined.some(t => songKey(t) === key)) return { ok: false, message: `"${spec.name}" is already coming up.` };
+  const recent = [decks.A, decks.B].flatMap(d => d.history.slice(-10));
+  if (recent.some(t => songKey(t) === key)) return { ok: false, message: `"${spec.name}" played a little while ago. Pick another one!` };
+  guest.waiting.push({ id: guest.nextId++, key, song: spec.name, by: name, at: Date.now() });
+  renderRequests();
+  setStatus(`🙋 New request: "${spec.name}"${name ? ` from ${name}` : ''}.`);
+  return { ok: true, message: `Sent! "${spec.name}" is waiting for the DJ to approve it.` };
+}
+
+function trackFromSpec(spec) {
+  return spec.youtubeId
+    ? makeYouTubeTrack(spec.youtubeId, spec.name)
+    : makeTrack({ path: spec.path, name: spec.name, duration: spec.duration });
+}
+
+/** Approved requests go near the top of the Main Queue, in the order they were approved. */
+function approveRequest(r) {
+  const spec = guest.library.find(s => s.key === r.key);
+  guest.waiting = guest.waiting.filter(x => x !== r);
+  if (spec) {
+    const t = trackFromSpec(spec);
+    t.requestedBy = r.by || '';
+    let at = 0;
+    while (at < mainQueue.queue.length && mainQueue.queue[at].requestedBy !== undefined) at++;
+    mainQueue.queue.splice(at, 0, t);
+    renderQueues();
+    mainQueue.afterAdd();
+    setStatus(`Approved "${r.song}"${r.by ? ` for ${r.by}` : ''}. It's number ${at + 1} in the Main Queue.`);
+  }
+  renderRequests();
+}
+
+function declineRequest(r) {
+  guest.waiting = guest.waiting.filter(x => x !== r);
+  renderRequests();
+}
+
+async function setGuestPlaylist(name) {
+  guest.playlist = name;
+  guest.library = [];
+  try { localStorage.setItem('dj-guest-playlist', name); } catch { /* not important */ }
+  if (name) {
+    try {
+      const { tracks } = await playlists.load(name);
+      const seen = new Set();
+      for (const t of tracks) {
+        const key = songKey(t);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        guest.library.push({ key, name: t.name, youtubeId: t.youtubeId, path: t.path, duration: t.duration });
+      }
+      guest.library.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (err) {
+      setStatus(`Couldn't open "${name}" for requests: ${err.message}`);
+    }
+  }
+  $('#guest-lib-note').textContent = name
+    ? `Guests can pick from ${guest.library.length} song${guest.library.length === 1 ? '' : 's'} in "${name}".`
+    : 'Pick one of your saved playlists. Guests only see the songs in it.';
+  if (guestApi) guestApi.setLibrary(guest.library.map(s => ({ key: s.key, name: s.name })));
+}
+
+async function fillGuestPlaylistChoices() {
+  const sel = $('#guest-playlist');
+  const items = await playlists.list().catch(() => []);
+  items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  sel.innerHTML = '<option value="">— choose a playlist —</option>';
+  for (const p of items) {
+    const o = document.createElement('option');
+    o.value = p.name;
+    o.textContent = `${p.name} (${p.count} songs)`;
+    sel.append(o);
+  }
+  sel.value = guest.playlist;
+}
+
+function renderGuestInfo(info) {
+  $('#guests-on').checked = info.enabled;
+  $('#guests-body').hidden = !info.running;
+  $('#guests-qr').innerHTML = info.qrSvg; // generated locally by the app
+  const urls = $('#guests-urls');
+  urls.textContent = '';
+  for (const u of info.urls) {
+    const div = document.createElement('div');
+    div.textContent = u;
+    urls.append(div);
+  }
+  $('#guests-count').textContent = info.running
+    ? `${info.guests} guest phone${info.guests === 1 ? '' : 's'} connected`
+    : '';
+}
+
+$('#requests-btn').addEventListener('click', () => {
+  if (!guestApi) {
+    $('#guests-desktop').hidden = true;
+    $('#guests-browser-note').hidden = false;
+    guestsDialog.showModal();
+    return;
+  }
+  showRequestsPanel(requestsPanel.hidden);
+  renderRequests();
+});
+$('#req-hide').addEventListener('click', () => {
+  showRequestsPanel(false);
+  renderRequests();
+});
+$('#req-approve-all').addEventListener('click', () => {
+  for (const r of [...guest.waiting]) approveRequest(r);
+});
+$('#req-settings').addEventListener('click', async () => {
+  $('#guests-desktop').hidden = !guestApi;
+  $('#guests-browser-note').hidden = !!guestApi;
+  await fillGuestPlaylistChoices();
+  if (guestApi) renderGuestInfo(await guestApi.info());
+  guestsDialog.showModal();
+});
+$('#guest-playlist').addEventListener('change', e => setGuestPlaylist(e.target.value));
+$('#guests-on').addEventListener('change', async e => {
+  const err = $('#guests-error');
+  err.hidden = true;
+  if (e.target.checked && !guest.playlist) {
+    err.textContent = 'Pick the playlist guests can choose from first.';
+    err.hidden = false;
+    e.target.checked = false;
+    return;
+  }
+  try {
+    renderGuestInfo(await guestApi.setEnabled(e.target.checked));
+  } catch (ex) {
+    err.textContent = `Couldn't start guest requests: ${ex.message}`;
+    err.hidden = false;
+    e.target.checked = false;
+  }
+});
+$('#guests-reset').addEventListener('click', async () => {
+  if (confirm('Make a new guest link? Phones using the current one will need to scan the new code.')) {
+    renderGuestInfo(await guestApi.reset());
+  }
+});
+
+if (guestApi) {
+  guestApi.onRequest(handleGuestRequest);
+  // What guests see: what's on, what's next, how many requests are waiting.
+  setInterval(() => {
+    guestApi.sendState({
+      nowPlaying: [decks.A, decks.B].filter(d => d.isAudible).map(d => d.track.name),
+      upNext: [...[decks.A, decks.B].filter(d => !d.isPlaying && !d.isSpent).map(d => d.track.name),
+        ...mainQueue.queue.filter(t => !t.error).map(t => t.name)].slice(0, 5),
+      waiting: guest.waiting.length,
+    });
+  }, 1500);
+  setInterval(() => {
+    renderRequests(); // keeps the "x min ago" labels fresh
+    if (guestsDialog.open) guestApi.info().then(renderGuestInfo);
+  }, 30000);
+  try {
+    const saved = localStorage.getItem('dj-guest-playlist');
+    if (saved) setGuestPlaylist(saved);
+  } catch { /* none saved */ }
+}
+try { showRequestsPanel(guestApi && localStorage.getItem('dj-requests-panel') === '1'); } catch { showRequestsPanel(false); }
+renderRequests();
 
 /* ---------- keyboard ---------- */
 

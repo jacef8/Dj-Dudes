@@ -19,6 +19,7 @@
       "preload.js",
       "remote-server.js",
       "remote.html",
+      "guest.html",
       "index.html",
       "style.css",
       "app.js",

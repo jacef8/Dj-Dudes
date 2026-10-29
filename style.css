@@ -286,3 +286,21 @@ body.no-screens .deck.is-yt:not(.is-playing) .screen { display: none; }
 /* A deck playing YouTube keeps the video size YouTube requires. */
 .deck.is-yt.is-playing .screen { height: max(200px, var(--screen-h, 200px)); }
 .deck.drop-target { border-color: #fff; box-shadow: 0 0 0 2px var(--c); }
+
+/* ---------- guest requests ---------- */
+.queues.with-requests { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.95fr); }
+.queue.requests-panel { --c: #ffd34d; border-color: #4a4126; }
+.queue.requests-panel h2 { color: #ffd34d; }
+.req-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; font-size: 14px; }
+.req-item:hover { background: var(--panel-2); }
+.req-item .q-main { flex: 1; min-width: 0; }
+.req-item .req-by { color: var(--muted); font-size: 12px; }
+.req-item button { padding: 4px 9px; font-size: 13px; }
+.req-item .ok { color: var(--live); border-color: #2f4a3c; }
+.req-item .no { color: var(--danger); border-color: #5a2a2a; }
+#requests-btn.has-requests { border-color: #ffd34d; color: #ffd34d; animation: pulse 1.4s infinite; }
+#requests-btn[aria-pressed="true"] { border-color: #ffd34d; }
+.q-by { color: #ffd34d; font-size: 12px; }
+.q-by:empty { display: none; }
+.guest-pl-row { margin-top: 10px; }
+.queue.requests-panel[hidden] { display: none; }

@@ -14,6 +14,7 @@
       <input type="range" id="master" min="0" max="1.5" step="0.01" value="1">
     </label>
     <button id="screens-btn" aria-pressed="true" title="Show or hide the visualizer screens (a deck playing YouTube always shows its video)">📺 <span id="screens-btn-label">Screens: On</span></button>
+ <button id="requests-btn" title="Show or hide guest song requests">🙋 <span id="requests-btn-label">Requests</span></button>
     <button id="remote-btn" title="Control DJ Dudes from your phone">📱 <span id="remote-btn-label">Remote</span></button>
     <button id="playlists-btn" title="Save and open playlists">📁 Playlists</button>
     <button id="help-btn" class="icon-btn" title="Keyboard shortcuts">?</button>
@@ -88,10 +89,22 @@
 
     <div class="splitter" id="splitter" title="Drag up for bigger queues, down for bigger screens (double-click to reset)"><span></span></div>
 
-    <section class="queues">
+    <section class="queues" id="queues">
       <div class="queue" data-deck="A"></div>
       <div class="queue main-queue" data-deck="M"></div>
       <div class="queue" data-deck="B"></div>
+      <div class="queue requests-panel" id="requests-panel" hidden>
+        <div class="queue-head">
+          <h2>🙋 Requests <small class="q-count" id="req-count"></small></h2>
+          <div class="queue-actions">
+            <button id="req-approve-all" title="Approve every waiting request">✓ Approve all</button>
+            <button id="req-settings" title="Turn guest requests on or off, pick the song list, show the guest QR code">Settings</button>
+            <button id="req-hide" title="Hide this panel (requests keep coming in)">Hide</button>
+          </div>
+        </div>
+        <ol class="queue-list" id="req-list"></ol>
+        <div class="queue-empty" id="req-empty"><span>No requests waiting</span></div>
+      </div>
     </section>
   </main>
 
@@ -164,6 +177,34 @@
       YouTube songs only work in the desktop app. Close this page and start DJ Dudes with
       <b>Start DJ Dudes.bat</b>.
     </p>
+    <form method="dialog" class="pl-foot"><button>Close</button></form>
+  </dialog>
+
+  <dialog id="guests-dialog" class="remote-dialog">
+    <h2>🙋 Guest song requests</h2>
+    <div id="guests-desktop">
+      <label class="check remote-toggle">
+        <input type="checkbox" id="guests-on">
+        Let guests request songs from their phones
+      </label>
+      <label class="row guest-pl-row">Songs they can pick from
+        <select id="guest-playlist"></select>
+      </label>
+      <p class="pl-note" id="guest-lib-note">Pick one of your saved playlists. Guests only see the songs in it.</p>
+      <div id="guests-body" hidden>
+        <div class="remote-qr" id="guests-qr"></div>
+        <ol class="remote-steps">
+          <li>Guests join the <b>same Wi-Fi</b> as this PC (or your phone's hotspot).</li>
+          <li>They scan this code with their phone camera. Show it on a screen or print it.</li>
+          <li>Each phone can request <b>1 song every 10 minutes</b>. Nothing plays until you approve it in the Requests panel.</li>
+        </ol>
+        <div class="remote-urls" id="guests-urls"></div>
+        <p class="remote-phones" id="guests-count"></p>
+        <button id="guests-reset" title="Makes a new guest link. Phones using the old one stop working.">New guest link</button>
+      </div>
+      <p class="remote-error" id="guests-error" hidden></p>
+    </div>
+    <p id="guests-browser-note" hidden>Guest requests need the desktop app (DJ Dudes.exe).</p>
     <form method="dialog" class="pl-foot"><button>Close</button></form>
   </dialog>
 

@@ -23,4 +23,18 @@ contextBridge.exposeInMainWorld('native', {
     sendState: state => ipcRenderer.send('remote-state', state),
     onCommand: cb => ipcRenderer.on('remote-cmd', (_e, cmd) => cb(cmd)),
   },
+
+  guests: {
+    info: () => ipcRenderer.invoke('guest-info'),
+    setEnabled: on => ipcRenderer.invoke('guest-set-enabled', on),
+    reset: () => ipcRenderer.invoke('guest-reset'),
+    sendState: state => ipcRenderer.send('guest-state', state),
+    setLibrary: list => ipcRenderer.send('guest-library', list),
+    /** cb({ key, name }) returns { ok, message } (or a promise of it). */
+    onRequest: cb => ipcRenderer.on('guest-request', async (_e, req) => {
+      let result;
+      try { result = await cb(req); } catch { result = { ok: false, message: 'Something went wrong.' }; }
+      ipcRenderer.send('guest-request-result', { id: req.id, ...result });
+    }),
+  },
 });
