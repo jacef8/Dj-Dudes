@@ -45,6 +45,7 @@ const state = {
   curve: 'power',
   automix: false,
   share: true,
+  dropFailed: true, // remove songs YouTube permanently blocks instead of keeping them with ⚠
   repeatAll: false, // finished songs go back to the end of their queue
   live: null,      // 'A' | 'B' — the deck automix considers "on air"
 };
@@ -215,17 +216,27 @@ class Deck {
     });
     media.addEventListener('error', () => {
       if (!active() || !this.track) return;
-      this.fail(media === this.yt ? this.yt.errorMessage : 'unsupported file?');
+      if (media === this.yt) this.fail(this.yt.errorMessage, { permanent: YT_PERMANENT.has(this.yt.errorCode) });
+      else this.fail('unsupported file?');
     });
   }
 
   /** A song couldn't be played: skip it without ever cutting the music that's on. */
-  fail(why) {
+  fail(why, { permanent = false } = {}) {
     const track = this.track;
-    setStatus(`Deck ${this.id}: can't play "${track ? track.name : 'that song'}" (${why}) — skipping.`);
     this.unload();
-    // Keep it in the queue, marked, so it doesn't just vanish.
-    if (track) {
+    if (track && state.dropFailed && permanent) {
+      // "Remove songs that can't play": take it out for good, including from
+      // the saved playlist it came from.
+      let msg = `Deck ${this.id}: removed "${track.name}" (${why})`;
+      if (track.playlist && track.youtubeId) {
+        playlists.removeYouTube(track.playlist, [track.youtubeId]).catch(() => {});
+        msg += ` from the queue and from the "${track.playlist}" playlist`;
+      }
+      setStatus(msg + '.');
+    } else if (track) {
+      // Keep it in the queue, marked, so it doesn't just vanish.
+      setStatus(`Deck ${this.id}: can't play "${track.name}" (${why}) — skipping.`);
       track.error = why;
       this.homeQueue(track).push(track);
       renderQueues();
@@ -1167,6 +1178,12 @@ $('#curve').addEventListener('change', e => {
 });
 
 $('#share').addEventListener('change', e => { state.share = e.target.checked; });
+try { state.dropFailed = localStorage.getItem('dj-drop-failed') !== '0'; } catch { /* default on */ }
+$('#drop-failed').checked = state.dropFailed;
+$('#drop-failed').addEventListener('change', e => {
+  state.dropFailed = e.target.checked;
+  try { localStorage.setItem('dj-drop-failed', state.dropFailed ? '1' : '0'); } catch { /* not important */ }
+});
 $('#repeat-all').addEventListener('change', e => { state.repeatAll = e.target.checked; });
 
 $('#master').addEventListener('input', e => setParamNow(master.gain, +e.target.value));
@@ -1317,6 +1334,7 @@ const desktopStore = {
     return tracks.length - usable.length;
   },
   remove: name => window.native.deletePlaylist(name),
+  removeYouTube: (name, ids) => window.native.removeYouTubeFromPlaylist(name, ids),
 };
 
 /**
@@ -1372,6 +1390,14 @@ const browserStore = {
     return tracks.length - usable.length;
   },
   remove(name) { return this.run('readwrite', s => s.delete(name)); },
+  async removeYouTube(name, ids) {
+    const p = await this.run('readonly', s => s.get(name));
+    if (!p) return 0;
+    const before = p.tracks.length;
+    p.tracks = p.tracks.filter(t => !ids.includes(t.youtubeId));
+    await this.run('readwrite', s => s.put(p));
+    return before - p.tracks.length;
+  },
 };
 
 const playlists = window.native ? desktopStore : browserStore;
@@ -1409,13 +1435,15 @@ async function renderPlaylists() {
       <span class="pl-meta"></span>
       <button class="to-m" title="Add these songs to the end of the Main Queue">Add to Main</button>
       <button class="to-a" title="Add these songs to the end of Queue A">A</button>
-      <button class="to-b" title="Add these songs to the end of Queue B">B</button>
+ <button class="to-b" title="Add these songs to the end of Queue B">B</button>
+      <button class="clean" title="Test every YouTube song in this playlist on this PC and remove the ones YouTube blocks">Check &amp; clean</button>
       <button class="del" title="Delete this playlist (your music files are not touched)">✕</button>`;
     $('.pl-name', li).textContent = p.name;
     $('.pl-meta', li).textContent = `${p.count} song${p.count === 1 ? '' : 's'}`;
     $('.to-m', li).addEventListener('click', () => openPlaylist(p.name, mainQueue));
     $('.to-a', li).addEventListener('click', () => openPlaylist(p.name, decks.A.panel));
     $('.to-b', li).addEventListener('click', () => openPlaylist(p.name, decks.B.panel));
+    $('.clean', li).addEventListener('click', () => cleanPlaylist(p.name));
     $('.del', li).addEventListener('click', async () => {
       if (!confirm(`Delete the playlist "${p.name}"? Your music files are not touched.`)) return;
       await playlists.remove(p.name);
@@ -1425,9 +1453,52 @@ async function renderPlaylists() {
   }
 }
 
+/** Test a saved playlist's YouTube songs on this PC and take out the ones YouTube blocks. */
+async function cleanPlaylist(name) {
+  if (!youtubeSupported) {
+    setStatus('Checking YouTube songs only works in the desktop app.');
+    return;
+  }
+  const progress = $('#pl-progress');
+  const host = $('#pl-preview');
+  try {
+    const { tracks } = await playlists.load(name);
+    const yt = tracks.filter(t => t.youtubeId);
+    if (!yt.length) {
+      progress.textContent = `"${name}" has no YouTube songs to check.`;
+      return;
+    }
+    host.hidden = false;
+    const results = await checkYouTubePlayable(yt.map(t => t.youtubeId), host, (done, total) => {
+      progress.textContent = `Checking "${name}": ${done} of ${total}… (close this window to stop)`;
+    }, () => !plDialog.open);
+    host.hidden = true;
+    const blocked = yt.filter(t => YT_PERMANENT.has(results.get(t.youtubeId)));
+    const checked = yt.filter(t => results.has(t.youtubeId)).length;
+    if (!blocked.length) {
+      progress.textContent = `Checked ${checked} song${checked === 1 ? '' : 's'} in "${name}": they can all play here.`;
+      return;
+    }
+    const names = blocked.map(t => `• ${t.name}`).join('\n');
+    if (!confirm(`${blocked.length} of ${checked} songs in "${name}" can't play on this PC (YouTube blocks them outside YouTube):\n\n${names}\n\nRemove them from the playlist?`)) {
+      progress.textContent = `Nothing removed. ${blocked.length} song${blocked.length === 1 ? '' : 's'} in "${name}" can't play here.`;
+      return;
+    }
+    const removed = await playlists.removeYouTube(name, blocked.map(t => t.youtubeId));
+    progress.textContent = `Removed ${removed} song${removed === 1 ? '' : 's'} that can't play from "${name}".`;
+    setStatus(progress.textContent);
+    renderPlaylists();
+  } catch (err) {
+    progress.textContent = `Couldn't check "${name}": ${err.message}`;
+  } finally {
+    host.hidden = true;
+  }
+}
+
 async function openPlaylist(name, panel) {
   try {
     const { tracks, missing } = await playlists.load(name);
+    for (const t of tracks) t.playlist = name;
     panel.queue.push(...tracks);
     renderQueues();
     panel.afterAdd();
@@ -1659,8 +1730,12 @@ async function addYouTubeLinks(text, panel, index = panel.queue.length, { check 
         const code = results.get(t.youtubeId);
         if (typeof code === 'number') {
           t.error = YT_ERRORS[code] || `YouTube error ${code}`;
+          t.permanent = YT_PERMANENT.has(code);
           blocked++;
         }
+      }
+      if (state.dropFailed) {
+        for (let i = tracks.length - 1; i >= 0; i--) if (tracks[i].permanent) tracks.splice(i, 1);
       }
     } catch (err) {
       setStatus(`Couldn't check the songs: ${err.message}`);
@@ -1670,16 +1745,19 @@ async function addYouTubeLinks(text, panel, index = panel.queue.length, { check 
     }
   }
   if (openedHere && ytDialog.open) ytDialog.close();
-  if (!tracks.length) return 0;
+  if (!tracks.length) {
+    if (checked) setStatus(`None of those ${checked} songs can play here (YouTube blocks them outside YouTube).`);
+    return 0;
+  }
   panel.queue.splice(Math.min(index, panel.queue.length), 0, ...tracks);
   renderQueues();
   panel.afterAdd();
   const onDeck = [decks.A, decks.B].find(d => tracks.includes(d.track));
   let msg = `Added ${tracks.length} YouTube song${tracks.length > 1 ? 's' : ''} to ${panel.label}.`;
   if (checked) {
-    msg += blocked
-      ? ` ${checked - blocked} of ${checked} can play; ⚠ ${blocked} can't (blocked outside YouTube) and will be skipped.`
-      : ` All ${checked} checked songs can play.`;
+    msg += !blocked ? ` All ${checked} checked songs can play.`
+      : state.dropFailed ? ` ${checked - blocked} of ${checked} can play; ${blocked} that YouTube blocks here were left out.`
+      : ` ${checked - blocked} of ${checked} can play; ⚠ ${blocked} can't (blocked outside YouTube) and will be skipped.`;
   }
   if (onDeck) msg += ` The first one is loaded on deck ${onDeck.id}.`;
   if (failed) msg += ` ${failed} playlist${failed > 1 ? 's' : ''} couldn't be read.`;

@@ -65,6 +65,11 @@
         </label>
 
         <label class="check">
+          <input type="checkbox" id="drop-failed" checked>
+          Remove songs that can't play: songs YouTube blocks are taken out of the queue (and out of the saved playlist they came from) instead of staying with a ⚠
+        </label>
+
+        <label class="check">
           <input type="checkbox" id="share" checked>
           Share queues: when one side runs out, take the next song from the other side
         </label>
@@ -119,6 +124,8 @@
     </form>
     <p class="pl-note">Save Main saves the Main Queue. Save A / Save B save the song on that deck plus everything in its queue, in order.</p>
 
+    <p class="yt-progress" id="pl-progress"></p>
+    <div class="yt-preview" id="pl-preview" hidden></div>
     <ul id="pl-list" class="pl-list"></ul>
 
     <div class="pl-foot">

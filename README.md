@@ -58,6 +58,8 @@ Click **+ YouTube** on a queue and paste links: songs, playlists or albums, one 
 - **Some songs can't be played outside YouTube** (the record label blocks it). DJ Dudes skips those automatically, and if it was fading into one, it swings straight back so the music never stops.
 - **EQ and pitch don't work on YouTube songs**, because YouTube doesn't let other apps change its sound. They're greyed out.
 - Private or automatic playlists (like *Liked Music*) can't be read. Make a normal playlist in YouTube Music, set it to **Public** or **Unlisted**, and share that.
+- **Remove songs that can't play** (under *More options*, on by default): a song YouTube permanently blocks is taken out of the queue, and out of the saved DJ Dudes playlist it came from, instead of staying with a ⚠. Songs that fail because the internet dropped are never removed. Your YouTube Music playlists are never changed.
+- **Check & clean** (Playlists window): tests every YouTube song in a saved playlist on this PC, lists the blocked ones and, if you say yes, removes them from that playlist.
 - **Check which songs can play:** with *Check which songs can play first* ticked (the default), DJ Dudes tries each song in YouTube's player before adding it, taking about 2 seconds a song. The result shows at the top, for example "14 of 20 can play", and blocked songs are added marked ⚠ and skipped, so you find out before the gig. The answer can differ between PCs and networks, so check on the PC you'll DJ with.
 - Only works in the desktop app, not when `index.html` is opened directly.
 

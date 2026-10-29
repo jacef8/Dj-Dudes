@@ -200,6 +200,37 @@ ipcMain.handle('save-playlist', async (_e, name, items) => {
 
 ipcMain.handle('delete-playlist', async (_e, name) => fs.rm(await playlistFile(name), { force: true }));
 
+/** Take YouTube songs (by video id) out of a saved playlist; every other line is kept as it is. */
+ipcMain.handle('playlist-remove-youtube', async (_e, name, ids) => {
+  const file = await playlistFile(name);
+  const text = await fs.readFile(file, 'utf8');
+  const drop = new Set(ids);
+  const idOf = line => (line.match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/)([\w-]{11})/) || [])[1];
+  const out = [];
+  let info = null; // the #EXTINF line waiting for its song
+  let removed = 0;
+  for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith('#EXTINF:')) {
+      if (info !== null) out.push(info);
+      info = raw;
+      continue;
+    }
+    if (line && !line.startsWith('#') && /^https?:/i.test(line) && drop.has(idOf(line))) {
+      info = null;
+      removed++;
+      continue;
+    }
+    if (info !== null && line) {
+      out.push(info);
+      info = null;
+    }
+    if (line) out.push(raw);
+  }
+  await fs.writeFile(file, out.join('\r\n') + '\r\n', 'utf8');
+  return removed;
+});
+
 ipcMain.handle('open-playlist-folder', async () => {
   await fs.mkdir(playlistDir(), { recursive: true });
   return shell.openPath(playlistDir());

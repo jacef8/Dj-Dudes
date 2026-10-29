@@ -99,6 +99,9 @@ function createYouTubePlayer(host, handlers = {}, extraVars = {}) {
   }));
 }
 
+/** Errors that won't go away by retrying: the owner blocks it, or it's gone. */
+const YT_PERMANENT = new Set([2, 100, 101, 150, 152]);
+
 const YT_ERRORS = {
   2: "that link doesn't point to a valid video",
   5: "YouTube's player couldn't play it",

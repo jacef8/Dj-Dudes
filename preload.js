@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('native', {
   readPlaylist: name => ipcRenderer.invoke('read-playlist', name),
   savePlaylist: (name, items) => ipcRenderer.invoke('save-playlist', name, items),
   deletePlaylist: name => ipcRenderer.invoke('delete-playlist', name),
+  removeYouTubeFromPlaylist: (name, ids) => ipcRenderer.invoke('playlist-remove-youtube', name, ids),
   openPlaylistFolder: () => ipcRenderer.invoke('open-playlist-folder'),
 
   remote: {
