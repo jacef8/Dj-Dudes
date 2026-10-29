@@ -40,7 +40,7 @@ npm run dist
 ## How to use it
 
 1. **Use the Main Queue** (the green one in the middle) for your set list. Drop songs, folders, YouTube links or a saved playlist into it, and the decks take turns playing them **in that order**: song 1 on A, song 2 on B, song 3 on A, and so on. Queue A and Queue B still work too, and a song placed there plays on that deck before the Main Queue's next song. On a Main Queue song, **→A** / **→B** moves it to that deck's queue, and a double-click loads it on the deck that isn't live.
-2. **Add songs.** Click **+ Songs** or **+ Folder** on Queue A or Queue B, or drag files or folders from Explorer straight onto a queue. MP3, WAV, FLAC, OGG, M4A/AAC and Opus all work. You can also drop a playlist file (`.m3u` / `.m3u8`, from DJ Dudes or other music apps) onto any queue to add everything in it.
+2. **Add songs.** Click **+ Songs** or **+ Folder** on Queue A or Queue B, or drag files or folders from Explorer straight onto a queue. MP3, WAV, FLAC, OGG, M4A/AAC and Opus all work. You can also drop a playlist file (`.m3u` / `.m3u8`, from DJ Dudes or other music apps) onto any queue to add everything in it. Drop songs **straight onto a deck** to load them there now: the first one loads (DJ Dudes asks first if that deck is playing out loud), any others go to the front of that deck's queue, and **BACK** brings back the song that was replaced.
 3. **Arrange the queues.** Drag songs to reorder them, or drag them across to the other queue. On each song, **⇄** moves it to the other side, **✕** removes it, and **Load** (or a double-click) puts it on the deck right away.
 4. **Fade when you choose.** Press ▶ on a deck. When you're ready for the other side, hit the big **FADE NOW** button (or `Space`). It starts the other deck and glides the crossfader over for you, taking **Fade duration** seconds. **Fade to A** / **Fade to B** do the same toward a particular side. You can also drag the crossfader yourself.
 5. **Or let it mix.** Turn on **AUTOMIX**. It plays A, then fades into B, then into the next song on A, and so on.
@@ -62,7 +62,7 @@ Click **+ YouTube** on a queue and paste links: songs, playlists or albums, one 
 - Only works in the desktop app, not when `index.html` is opened directly.
 
 ### Visualizer screens
-Each deck has a screen above its waveform: animated bars that move with the music, or the video for a YouTube song. The bars show a deck even before you fade it in, so you can see the next song is ready. **📺 Screens** (top right) hides them to give the queues more room. A deck playing YouTube always keeps its video visible, because YouTube requires it.
+Drag the **bar between the decks and the queues** to resize: up for bigger queues (all the way up hides the screens), down for bigger screens, and double-click it to reset. Each deck has a screen above its waveform: animated bars that move with the music, or the video for a YouTube song. The bars show a deck even before you fade it in, so you can see the next song is ready. **📺 Screens** (top right) hides them to give the queues more room. A deck playing YouTube always keeps its video visible, because YouTube requires it.
 
 ### Playlists
 Click **📁 Playlists** (top right) or **Save** on a queue.

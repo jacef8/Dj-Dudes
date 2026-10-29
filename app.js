@@ -434,6 +434,29 @@ class Deck {
     this.start();
   }
 
+  /**
+   * Songs dropped on the deck. The song that was on it isn't lost: BACK
+   * brings it back. If it was playing out loud, ask first, then keep playing.
+   */
+  loadDropped(tracks) {
+    if (!this.confirmInterrupt()) {
+      // Not replacing it: line the songs up next on this deck instead.
+      this.queue.unshift(...tracks);
+      renderQueues();
+      setStatus(`Put ${tracks.length} song${tracks.length > 1 ? 's' : ''} at the front of Queue ${this.id}.`);
+      return;
+    }
+    const wasPlaying = this.isPlaying;
+    const [first, ...rest] = tracks;
+    this.queue.unshift(...rest);
+    first.origin = this.id;
+    this.load(first);
+    if (wasPlaying) this.start();
+    let msg = `Deck ${this.id}: loaded "${first.name}".`;
+    if (rest.length) msg += ` ${rest.length} more at the front of Queue ${this.id}.`;
+    setStatus(msg);
+  }
+
   /** NEXT: skip to the next song, keep playing if we were. */
   next() {
     const wasPlaying = this.isPlaying;
@@ -548,6 +571,22 @@ class Deck {
     });
     new ResizeObserver(() => this.resizeCanvas()).observe(canvas);
     new ResizeObserver(() => this.resizeCanvas()).observe(this.ui.viz);
+
+    // Drop songs straight onto the deck: the first one loads here now, any
+    // others go to the front of this deck's queue.
+    root.addEventListener('dragover', e => {
+      e.preventDefault();
+      root.classList.add('drop-target');
+    });
+    root.addEventListener('dragleave', e => {
+      if (!root.contains(e.relatedTarget)) root.classList.remove('drop-target');
+    });
+    root.addEventListener('drop', async e => {
+      e.preventDefault();
+      root.classList.remove('drop-target');
+      const tracks = await tracksFromDrop(e.dataTransfer);
+      if (tracks.length) this.loadDropped(tracks);
+    });
     this.color = getComputedStyle(root).getPropertyValue('--c').trim();
   }
 
@@ -910,6 +949,42 @@ function tracksFromM3U(text) {
     else if (window.native && !/^https?:/i.test(line)) tracks.push(makeTrack({ path: line, name: title }));
     title = '';
   }
+  return tracks;
+}
+
+/**
+ * Turn anything dropped (a song dragged from a queue, files, folders,
+ * playlist files or YouTube links) into tracks, taking queued songs out of
+ * their queue.
+ */
+async function tracksFromDrop(dt) {
+  const moved = dt.getData('application/x-dj-track');
+  if (moved) {
+    const { from, id } = JSON.parse(moved);
+    const src = queuePanels[from].queue;
+    const i = src.findIndex(t => t.id === id);
+    return i < 0 ? [] : src.splice(i, 1);
+  }
+  if (!dt.files.length) {
+    const text = dt.getData('text/uri-list') || dt.getData('text/plain') || '';
+    const ids = text.split(/\s+/).map(parseYouTubeLink).filter(l => l && l.id);
+    if (!ids.length) {
+      if (text) setStatus('To drop a YouTube playlist, drop it on a queue instead.');
+      return [];
+    }
+    if (!youtubeSupported) {
+      setStatus('YouTube songs only play in the desktop app.');
+      return [];
+    }
+    return ids.map(l => makeYouTubeTrack(l.id));
+  }
+  const files = await filesFromDrop(dt);
+  const tracks = [];
+  for (const f of files.filter(f => /\.m3u8?$/i.test(f.name))) tracks.push(...tracksFromM3U(await f.text()));
+  for (const f of files.filter(f => !/\.m3u8?$/i.test(f.name) && (AUDIO_EXT.test(f.name) || f.type.startsWith('audio/')))) {
+    tracks.push(makeTrack({ file: f, path: window.native ? window.native.pathForFile(f) : '' }));
+  }
+  if (!tracks.length && files.length) setStatus('None of those files look like audio.');
   return tracks;
 }
 
@@ -1656,6 +1731,55 @@ setInterval(() => {
 }, 50);
 
 /* ---------- screens (visualizer / YouTube video) ---------- */
+
+// Screen height, set by dragging the bar between the decks and the queues.
+const SCREEN_MIN = 60;
+const SCREEN_MAX = 340;
+let screenH = 200;
+try { screenH = clamp(+localStorage.getItem('dj-screen-h') || 200, SCREEN_MIN, SCREEN_MAX); } catch { /* default */ }
+function applyScreenHeight() {
+  document.documentElement.style.setProperty('--screen-h', `${screenH}px`);
+}
+applyScreenHeight();
+
+(() => {
+  const bar = $('#splitter');
+  let startY = 0;
+  let startH = 0;
+  let wasOff = false;
+  bar.addEventListener('pointerdown', e => {
+    bar.setPointerCapture(e.pointerId);
+    bar.classList.add('dragging');
+    startY = e.clientY;
+    wasOff = document.body.classList.contains('no-screens');
+    startH = wasOff ? 0 : screenH;
+  });
+  bar.addEventListener('pointermove', e => {
+    if (!bar.classList.contains('dragging')) return;
+    const h = startH + (e.clientY - startY);
+    if (h < SCREEN_MIN - 20) {
+      // Dragged right up: hide the screens altogether.
+      if (!document.body.classList.contains('no-screens')) setScreens(false);
+      return;
+    }
+    if (document.body.classList.contains('no-screens')) setScreens(true);
+    screenH = clamp(h, SCREEN_MIN, SCREEN_MAX);
+    applyScreenHeight();
+  });
+  const end = () => {
+    if (!bar.classList.contains('dragging')) return;
+    bar.classList.remove('dragging');
+    try { localStorage.setItem('dj-screen-h', String(screenH)); } catch { /* not important */ }
+  };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', end);
+  bar.addEventListener('dblclick', () => {
+    screenH = 200;
+    applyScreenHeight();
+    setScreens(true);
+    try { localStorage.setItem('dj-screen-h', '200'); } catch { /* not important */ }
+  });
+})();
 
 function setScreens(on) {
   document.body.classList.toggle('no-screens', !on);
