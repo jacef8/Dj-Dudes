@@ -1080,6 +1080,7 @@ automixBtn.addEventListener('click', () => {
   } else if (playing.length === 1) {
     state.live = playing[0].id;
   }
+  state.automixKick = true; // allowed to start (or resume) a deck if nothing is playing
   setAutomix(true, 'Automix on.');
 });
 
@@ -1100,13 +1101,29 @@ function automixTick() {
   }
 
   let live = decks[state.live];
+  if (all.some(d => d.isPlaying)) {
+    if (state.holdNoticed) setStatus('Automix: carrying on.');
+    state.holdNoticed = false;
+    state.automixKick = false;
+  }
   if (!live || !live.isPlaying) {
     const playing = all.find(d => d.isPlaying);
     if (playing) {
       live = playing;
       state.live = live.id;
     } else {
-      const ready = [live && live.other, decks.A, decks.B].find(d => d && !d.isSpent);
+      // The song on air is paused (not finished): the DJ paused it, so wait for
+      // them instead of jumping to the other deck. Turning automix on with
+      // nothing playing (automixKick) is the one time it starts things itself.
+      if (live && !live.isSpent && !state.automixKick) {
+        if (!state.holdNoticed) {
+          state.holdNoticed = true;
+          setStatus(`Automix is waiting: deck ${live.id} is paused. Press ▶ to carry on.`);
+        }
+        return;
+      }
+      state.automixKick = false;
+      const ready = [live, live && live.other, decks.A, decks.B].find(d => d && !d.isSpent);
       if (!ready) {
         setAutomix(false, 'Automix finished — both queues are empty.');
         return;
