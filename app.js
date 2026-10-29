@@ -1479,6 +1479,8 @@ async function addYouTubeLinks(text, panel, index = panel.queue.length, { check 
   }
   const tracks = [];
   let failed = 0;
+  let partialLists = 0;
+  let partialLog = '';
   const openedHere = !ytDialog.open;
   for (const link of links) {
     if (link.id) {
@@ -1491,8 +1493,12 @@ async function addYouTubeLinks(text, panel, index = panel.queue.length, { check 
     ytPreview.hidden = false;
     if (!ytDialog.open) ytDialog.showModal();
     try {
-      const ids = await expandYouTubePlaylist(link.list, ytPreview);
-      tracks.push(...ids.map(id => makeYouTubeTrack(id)));
+      const { items, partial, log } = await expandYouTubePlaylist(link.list, ytPreview);
+      tracks.push(...items.map(it => makeYouTubeTrack(it.id, it.title)));
+      if (partial) {
+        partialLists++;
+        partialLog = log;
+      }
     } catch (err) {
       failed++;
       setStatus(`Couldn't read that playlist: ${err.message}`);
@@ -1539,6 +1545,7 @@ async function addYouTubeLinks(text, panel, index = panel.queue.length, { check 
   }
   if (onDeck) msg += ` The first one is loaded on deck ${onDeck.id}.`;
   if (failed) msg += ` ${failed} playlist${failed > 1 ? 's' : ''} couldn't be read.`;
+  if (partialLists) msg += ` YouTube's player wouldn't list the playlist, so only its first 15 songs could be read. [${partialLog}]`;
   setStatus(msg);
   return tracks.length;
 }

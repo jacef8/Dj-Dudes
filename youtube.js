@@ -80,7 +80,7 @@ function loadYouTubeApi() {
 }
 
 /** Create a YouTube player inside `host` and resolve once it's ready. */
-function createYouTubePlayer(host, handlers = {}) {
+function createYouTubePlayer(host, handlers = {}, extraVars = {}) {
   return loadYouTubeApi().then(YT => new Promise((resolve, reject) => {
     const div = document.createElement('div');
     host.append(div);
@@ -89,7 +89,7 @@ function createYouTubePlayer(host, handlers = {}) {
     new YT.Player(div, {
       width: '100%',
       height: '100%',
-      playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, origin: location.origin },
+      playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, origin: location.origin, ...extraVars },
       events: {
         onReady: e => { clearTimeout(timer); resolve(e.target); },
         onStateChange: e => handlers.onState && handlers.onState(e.data),
@@ -279,43 +279,74 @@ const PLAYLIST_UNREADABLE =
   "YouTube wouldn't list its songs (it may be private, empty, or an automatic list such as Liked Music or a channel's uploads)";
 
 /**
- * Turn a playlist/album link into its video ids, using a temporary player
- * shown in `host` (YouTube requires its player to be visible). The player's
- * state events vary between PCs, so this just keeps asking the player for its
- * list: first after cueing the playlist, then (if that stays empty) after
- * starting it muted.
+ * Turn a playlist/album link into its songs: { items: [{ id, title }], partial }.
+ * The player has to be visible (YouTube's rules), so it's shown in `host`.
+ * YouTube's player behaves differently on different PCs, so several ways are
+ * tried in turn; the last resort is the playlist's public RSS feed, which
+ * only lists the first 15 songs.
  */
 async function expandYouTubePlaylist(listId, host) {
-  const player = await createYouTubePlayer(host, {}); // errors about one video don't matter here
-  const waitForIds = async ms => {
+  const log = [];
+  const handlers = {
+    onState: s => log.push(`s${s}`),
+    onError: code => log.push(`e${code}`),
+  };
+  const waitForIds = async (player, ms) => {
     for (let t = 0; t < ms; t += 300) {
-      const ids = player.getPlaylist() || [];
+      let ids = [];
+      try { ids = player.getPlaylist() || []; } catch { /* not ready yet */ }
       if (ids.length) {
         // The list can keep filling in for a moment; wait until it stops growing.
         await new Promise(r => setTimeout(r, 900));
         const again = player.getPlaylist() || [];
-        if (again.length === ids.length) return again;
-        t = 0;
+        if (again.length === ids.length) return [...new Set(again)];
         continue;
       }
       await new Promise(r => setTimeout(r, 300));
     }
     return [];
   };
+  const asItems = ids => ({ items: ids.map(id => ({ id, title: '' })), partial: false });
+
+  // 1 + 2: cue the playlist, then (if still empty) start it muted.
+  let player = await createYouTubePlayer(host, handlers);
   try {
     player.mute();
     player.cuePlaylist({ listType: 'playlist', list: listId });
-    let ids = await waitForIds(12000);
+    let ids = await waitForIds(player, 8000);
     if (!ids.length) {
+      log.push('|load');
       player.loadPlaylist({ listType: 'playlist', list: listId });
-      ids = await waitForIds(12000);
+      ids = await waitForIds(player, 8000);
       player.stopVideo();
     }
-    if (!ids.length) throw new Error(`${PLAYLIST_UNREADABLE} [no songs after 24 s]`);
-    return [...new Set(ids)];
+    if (ids.length) return asItems(ids);
   } finally {
     player.destroy();
   }
+
+  // 3: a player that opens with the playlist already loaded.
+  log.push('|embed');
+  player = await createYouTubePlayer(host, handlers, { listType: 'playlist', list: listId });
+  try {
+    player.mute();
+    const ids = await waitForIds(player, 10000);
+    if (ids.length) return asItems(ids);
+  } finally {
+    player.destroy();
+  }
+
+  // 4: the public RSS feed (desktop app only: a web page isn't allowed to read it).
+  if (window.native && window.native.youtubePlaylistFeed) {
+    try {
+      const items = await window.native.youtubePlaylistFeed(listId);
+      if (items.length) return { items, partial: true, log: log.join(' ') };
+      log.push('|rss empty');
+    } catch (err) {
+      log.push(`|rss ${err.message}`);
+    }
+  }
+  throw new Error(`${PLAYLIST_UNREADABLE} [${log.join(' ') || 'no player events'}]`);
 }
 
 /**

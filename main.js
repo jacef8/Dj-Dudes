@@ -1,5 +1,5 @@
 // Electron entry point: opens DJ Dudes in its own desktop window.
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, net } = require('electron');
 const http = require('http');
 const fs = require('fs/promises');
 const fsSync = require('fs');
@@ -141,6 +141,23 @@ function parseM3U(text, dir) {
 }
 
 ipcMain.handle('read-file', (_e, p) => fs.readFile(p));
+
+/** A YouTube playlist's public RSS feed (YouTube lists the first 15 songs there). */
+ipcMain.handle('yt-playlist-feed', async (_e, listId) => {
+  if (!/^[\w-]{2,64}$/.test(String(listId))) throw new Error('bad playlist id');
+  const res = await net.fetch(`https://www.youtube.com/feeds/videos.xml?playlist_id=${listId}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const xml = await res.text();
+  const unescape = t => t.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  const items = [];
+  for (const entry of xml.split('<entry>').slice(1)) {
+    const id = (entry.match(/<yt:videoId>([\w-]{11})<\/yt:videoId>/) || [])[1];
+    const title = (entry.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
+    if (id) items.push({ id, title: unescape(title) });
+  }
+  return items;
+});
 
 ipcMain.handle('playlist-dir', () => playlistDir());
 

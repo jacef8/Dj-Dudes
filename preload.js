@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('native', {
     try { return webUtils.getPathForFile(file) || ''; } catch { return ''; }
   },
   readFile: path => ipcRenderer.invoke('read-file', path),
+  youtubePlaylistFeed: listId => ipcRenderer.invoke('yt-playlist-feed', listId),
   playlistDir: () => ipcRenderer.invoke('playlist-dir'),
   listPlaylists: () => ipcRenderer.invoke('list-playlists'),
   readPlaylist: name => ipcRenderer.invoke('read-playlist', name),
