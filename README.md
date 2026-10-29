@@ -70,6 +70,7 @@ Drag the **bar between the decks and the queues** to resize: up for bigger queue
 Click **📁 Playlists** (top right) or **Save** on a queue.
 - **Save Queue A / B** saves the song on that deck plus everything in its queue, in order.
 - **Add to A / Add to B** puts a saved playlist's songs at the end of that queue.
+- **Import playlist file…** adds an `.m3u` / `.m3u8` file (from DJ Dudes or another music app) to your saved playlists.
 - **Desktop app:** playlists are saved as normal `.m3u8` files in `Documents\DJ Dudes\Playlists`. They point at your music where it already is, so if you move or rename a song, it gets skipped and you're told how many were missing. You can also drop `.m3u`/`.m3u8` playlists exported from other music software into that folder and they'll show up.
 - **Opening `index.html` in a browser:** a web page can't reopen files from where they sit on your PC, so a copy of each song is saved inside the browser with the playlist. This takes up disk space, and clearing the browser's site data deletes these playlists.
 

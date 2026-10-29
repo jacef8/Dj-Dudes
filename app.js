@@ -1553,6 +1553,26 @@ $('#pl-save-form').addEventListener('submit', e => {
 });
 $('#playlists-btn').addEventListener('click', () => showPlaylists());
 $('#pl-open-folder').addEventListener('click', () => window.native.openPlaylistFolder());
+$('#pl-import').addEventListener('click', () => $('#pl-import-input').click());
+$('#pl-import-input').addEventListener('change', async e => {
+  const input = e.target;
+  const done = [];
+  for (const f of [...input.files]) {
+    const tracks = tracksFromM3U(await f.text());
+    if (!tracks.length) continue;
+    const name = f.name.replace(/\.m3u8?$/i, '').trim() || 'Imported playlist';
+    try {
+      await playlists.save(name, tracks);
+      done.push(`"${name}" (${tracks.length} songs)`);
+    } catch (err) {
+      setStatus(`Couldn't import "${name}": ${err.message}`);
+    }
+  }
+  input.value = '';
+  if (done.length) setStatus(`Imported ${done.join(', ')}. Click Add to Main to use it.`);
+  else setStatus('No songs DJ Dudes can open in that file.');
+  renderPlaylists();
+});
 
 /* ---------- phone remote (desktop app only) ---------- */
 
