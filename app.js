@@ -780,7 +780,23 @@ class QueuePanel {
     });
   }
 
-  addFiles(files, index = this.queue.length) {
+  async addFiles(files, index = this.queue.length) {
+    // Playlist files (.m3u / .m3u8): add the songs they list.
+    const lists = files.filter(f => /\.m3u8?$/i.test(f.name));
+    if (lists.length) {
+      const tracks = [];
+      for (const f of lists) tracks.push(...tracksFromM3U(await f.text()));
+      if (tracks.length) {
+        this.queue.splice(index, 0, ...tracks);
+        index += tracks.length;
+        setStatus(`Added ${tracks.length} song${tracks.length > 1 ? 's' : ''} from ${lists.map(f => `"${f.name}"`).join(', ')} to ${this.label}.`);
+        renderQueues();
+        this.afterAdd();
+      } else {
+        setStatus(`No songs DJ Dudes can open in ${lists.map(f => `"${f.name}"`).join(', ')}.`);
+      }
+    }
+    files = files.filter(f => !lists.includes(f));
     const audio = files.filter(f => AUDIO_EXT.test(f.name) || f.type.startsWith('audio/'));
     if (!audio.length) {
       if (files.length) setStatus('None of those files look like audio.');
@@ -865,6 +881,29 @@ class QueuePanel {
       list.append(li);
     });
   }
+}
+
+/**
+ * Songs listed in an M3U/M3U8 playlist file: YouTube links anywhere, and file
+ * paths in the desktop app (a web page can't open files by their path).
+ */
+function tracksFromM3U(text) {
+  const tracks = [];
+  let title = '';
+  for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith('#EXTINF:')) {
+      title = line.replace(/^#EXTINF:[^,]*,/, '').trim();
+      continue;
+    }
+    if (line.startsWith('#')) continue;
+    const yt = /^https?:/i.test(line) && parseYouTubeLink(line);
+    if (yt && yt.id) tracks.push(makeYouTubeTrack(yt.id, title));
+    else if (window.native && !/^https?:/i.test(line)) tracks.push(makeTrack({ path: line, name: title }));
+    title = '';
+  }
+  return tracks;
 }
 
 /** Collect files from a drop, walking into dropped folders. */
