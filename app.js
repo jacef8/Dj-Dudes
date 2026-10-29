@@ -457,7 +457,7 @@ class Deck {
       setStatus(`Put ${tracks.length} song${tracks.length > 1 ? 's' : ''} at the front of Queue ${this.id}.`);
       return;
     }
-    const wasPlaying = this.isPlaying;
+    const wasPlaying = this.isAudible; // only a deck that's on air keeps playing
     const [first, ...rest] = tracks;
     this.queue.unshift(...rest);
     first.origin = this.id;
@@ -470,7 +470,7 @@ class Deck {
 
   /** NEXT: skip to the next song, keep playing if we were. */
   next() {
-    const wasPlaying = this.isPlaying;
+    const wasPlaying = this.isAudible; // only a deck that's on air keeps playing
     if (!this.loadNext()) {
       setStatus(`Deck ${this.id}: queue is empty.`);
       return;
@@ -481,7 +481,7 @@ class Deck {
   /** BACK: restart the song, or (near its start) go to the previous one. */
   back() {
     if (!this.track) return;
-    const wasPlaying = this.isPlaying;
+    const wasPlaying = this.isAudible; // only a deck that's on air keeps playing
     if (this.el.currentTime > 3 || !this.history.length) {
       this.el.currentTime = 0;
       if (!this.history.length) setStatus(`Deck ${this.id}: back to the start (no earlier song on this deck).`);
@@ -1108,11 +1108,16 @@ function updateFade() {
   xfaderInput.value = pos;
   if (p >= 1) {
     state.fade = null;
-    // In automix, the deck we faded away from is finished with its song:
-    // stop it and line up its next one.
+    // The deck we faded away from is finished with its song: stop it (so it
+    // can't carry on silently and start the next song by itself). In automix,
+    // also line up its next one.
     const silent = [decks.A, decks.B].find(d => curveGains(state.xfade)[d.side] < 1e-3);
-    if (state.automix && silent && silent.isPlaying) {
-      if (!silent.loadNext()) silent.unload(true);
+    if (silent && silent.isPlaying) {
+      if (state.automix) {
+        if (!silent.loadNext()) silent.unload(true);
+      } else {
+        silent.pause();
+      }
     }
   }
 }
