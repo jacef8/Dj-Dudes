@@ -43,22 +43,17 @@ module shell() {
 // ---------------- facemask ----------------
 module seg(a, b) hull() { translate(a) sphere(BAR, $fn=24); translate(b) sphere(BAR, $fn=24); }
 module poly(pts) for (i = [0:len(pts)-2]) seg(pts[i], pts[i+1]);
-function arc(cy, cz, rx, ry, a0, a1, n=24) =
-    [for (i = [0:n-1]) let(t = a0 + (a1 - a0) * i / (n-1)) [rx*cos(t), cy + ry*sin(t), cz]];
-
-ZT = 8; ZM = -6; ZB = -18;   // bar heights: brow, middle, bottom
+// Bars are ellipses (top view) standing OUT IN FRONT of the face opening.
+// Their ends land on the shell surface at the sides - glue there.
+CY   = 26;                                       // y where bar ends meet the shell
+BARS = [[10, 46, 46], [-8, 46, 48], [-24, 42, 44]];  // [z, half-width, forward reach]
+function bar_y(x, ax, ay) = CY + ay*sqrt(max(0, 1 - pow(x/ax, 2)));
 
 module mask() {
-    poly(arc(10, ZT, 42, 40, 15, 165));   // brow bar
-    poly(arc(10, ZM, 44, 44, 20, 160));   // middle bar
-    poly(arc(14, ZB, 40, 40, 25, 155));   // bottom bar
-    for (x = [-12, 12]) {                 // vertical bars
-        yt = 10 + 40*sqrt(max(0, 1 - pow(x/42, 2)));
-        yb = 14 + 40*sqrt(max(0, 1 - pow(x/40, 2)));
-        poly([[x, yt, ZT], [x, yb+1, ZM], [x, yb, ZB]]);
-    }
-    for (sx = [-1, 1], z = [ZT, ZB])      // side mounts (glue to shell)
-        seg([sx*40, 24, z], [sx*(RX-3), 22, z]);
+    for (b = BARS)                         // horizontal bars
+        poly([for (i = [0:31]) let(t = 180*i/31) [b[1]*cos(t), CY + b[2]*sin(t), b[0]]]);
+    for (x = [-14, 0, 14])                 // vertical bars
+        poly([for (b = BARS) [x, bar_y(x, b[1], b[2]), b[0]]]);
 }
 
 scale(SCALE) {

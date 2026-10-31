@@ -48,18 +48,19 @@ shell += pad - inner
 for x in (-14, 14):
     shell -= box(x-3, x+3, -99, -40, 22, 34)
 # ---------------- facemask ----------------
+# Bars are ellipses in plan view that sit OUT IN FRONT of the face opening;
+# their ends land on the shell surface at the sides (glue points).
 R = 2.2
-cz_top, cz_mid, cz_bot = 8, -6, -18
-mask = tube(arc(10, cz_top, 42, 40, 15, 165), R)       # top bar (brow)
-mask += tube(arc(10, cz_mid, 44, 44, 20, 160), R)      # middle bar
-mask += tube(arc(14, cz_bot, 40, 40, 25, 155), R)      # bottom bar
-for x in (-12, 12):                                    # vertical bars
-    yt = 10 + 40*math.sqrt(max(0, 1-(x/42)**2))
-    yb = 14 + 40*math.sqrt(max(0, 1-(x/40)**2))
-    mask += tube([(x, yt, cz_top), (x, yb+1, cz_mid), (x, yb, cz_bot)], R)
-for sx in (-1, 1):                                     # side mounts (glue to shell)
-    for z in (cz_top, cz_bot):
-        mask += tube([(sx*40, 24, z), (sx*(RX-3), 22, z)], R)
+CY = 26                                    # y where bar ends meet the shell
+BARS = [(10, 46, 46), (-8, 46, 48), (-24, 42, 44)]   # (z, half-width, forward reach)
+def bar_y(x, ax, ay):
+    return CY + ay*math.sqrt(max(0, 1-(x/ax)**2))
+mask = None
+for z, ax, ay in BARS:
+    pts = [(ax*math.cos(t), CY + ay*math.sin(t), z) for t in np.linspace(0, math.pi, 32)]
+    b_ = tube(pts, R); mask = b_ if mask is None else mask + b_
+for x in (-14, 0, 14):                     # vertical bars
+    mask += tube([(x, bar_y(x, ax, ay), z) for z, ax, ay in BARS], R)
 
 def save(m, name):
     mesh = m.scale((S, S, S)).to_mesh()
